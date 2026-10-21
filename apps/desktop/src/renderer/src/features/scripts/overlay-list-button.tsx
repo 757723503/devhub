@@ -24,7 +24,12 @@ export function OverlayListButton({
       disabled={setOverlay.isPending}
       onClick={() => setOverlay.mutate({ projectId, scriptId: script.id, overlay: !listed })}
     >
-      <PanelTop className={cn(listed ? 'text-info' : 'text-muted-foreground')} />
+      <PanelTop
+        size={12}
+        absoluteStrokeWidth
+        strokeWidth={2}
+        className={cn(listed ? 'fill-current text-info' : 'fill-none text-muted-foreground')}
+      />
     </Button>
   )
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { PanelTop, RefreshCw, TriangleAlert, X } from 'lucide-react'
+import { RefreshCw, TriangleAlert, X } from 'lucide-react'
 import type { Project } from '@devhub/shared'
-import { shell } from '@renderer/api'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import { Button } from '@renderer/components/ui/button'
 import { EditorButtons } from '@renderer/features/editors/editor-buttons'
@@ -31,18 +30,6 @@ export function ProjectDetail({
             {project.path}
           </p>
         </div>
-        {shell && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="px-2"
-            title="显示或隐藏悬浮面板"
-            aria-label="显示或隐藏悬浮面板"
-            onClick={() => void shell?.toggleOverlay()}
-          >
-            <PanelTop />
-          </Button>
-        )}
         <EditorButtons
           projectId={project.id}
           projectName={project.name}

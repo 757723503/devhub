@@ -53,6 +53,10 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(main.getByRole('button', { name: '收藏 扫描资源' })).toBeVisible()
   await expect(main.getByRole('button', { name: '不在悬浮面板显示 全量dev' })).toBeVisible()
   await expect(main.getByRole('button', { name: '在悬浮面板显示 扫描资源' })).toBeVisible()
+  await expect(
+    page.getByRole('banner').getByRole('button', { name: '显示或隐藏悬浮面板' })
+  ).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('main-toggles.png') })
   await main.getByRole('button', { name: '只看收藏' }).click()
   await expect(main.getByText('扫描资源', { exact: true })).toBeHidden()
   await expect(main.getByText('全量dev', { exact: true })).toBeVisible()

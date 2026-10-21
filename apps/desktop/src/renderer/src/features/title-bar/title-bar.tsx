@@ -1,4 +1,13 @@
-import { Copy, Layers, Menu, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react'
+import {
+  Copy,
+  Layers,
+  Menu,
+  Minus,
+  PanelTop,
+  Settings as SettingsIcon,
+  Square,
+  X
+} from 'lucide-react'
 import { shell } from '@renderer/api'
 import { Button } from '@renderer/components/ui/button'
 import { useAppInfo } from '@renderer/features/app-info/use-app-info'
@@ -63,6 +72,17 @@ export function TitleBar({
       {!onOpenNavigation && <ActiveGroupsIndicator onSelectGroup={onSelectGroup} />}
       <div className="app-no-drag ml-auto flex items-center gap-1">
         <UpdateBadge />
+        {shell && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="显示或隐藏悬浮面板"
+            aria-label="显示或隐藏悬浮面板"
+            onClick={() => void shell?.toggleOverlay()}
+          >
+            <PanelTop />
+          </Button>
+        )}
         <Button
           variant={showSettings ? 'secondary' : 'ghost'}
           size="icon-sm"
