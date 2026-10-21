@@ -9,6 +9,7 @@ import {
   type DevhubEvents,
   type IpcResult,
   type OverlayFocusTarget,
+  type OverlayResizeGesture,
   type OverlayWindowState,
   type ShellApi,
   type UpdateStatus,
@@ -86,6 +87,12 @@ const shell: ShellApi = {
   },
   focusRun: async (projectId, runId) => {
     await invoke(shellChannel.focusRun, projectId, runId)
+  },
+  setOverlayContentHeight: async (height) => {
+    await invoke(shellChannel.setOverlayContentHeight, height)
+  },
+  resizeOverlay: async (gesture: OverlayResizeGesture) => {
+    await invoke(shellChannel.resizeOverlay, gesture)
   },
   onFocusRun(listener) {
     const handler = (_event: IpcRendererEvent, target: OverlayFocusTarget): void => listener(target)

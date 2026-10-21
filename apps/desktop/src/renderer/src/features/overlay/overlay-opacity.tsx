@@ -61,14 +61,16 @@ export function OverlayOpacitySlider({
 /** Header control on the panel: drag previews immediately, release writes settings. */
 export function OverlayOpacityButton({
   opacity,
-  onPreview
+  onPreview,
+  onOpenChange
 }: {
   opacity: number
   onPreview: (value: number | null) => void
+  onOpenChange?: (open: boolean) => void
 }): React.JSX.Element {
   const update = useUpdateSettings()
   return (
-    <Popover>
+    <Popover onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"

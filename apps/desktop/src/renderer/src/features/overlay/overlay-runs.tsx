@@ -44,7 +44,7 @@ export function OverlayRuns({
   scripts: Script[]
   runs: Run[]
   onError: (error: Error, retry?: () => void) => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const listed = useOverlayScripts()
   const longRunning = scripts.filter((script) =>
     isScriptOnOverlay(script, listed.data ?? [], projectId)
@@ -57,16 +57,7 @@ export function OverlayRuns({
   const now = useNow()
   const [openId, setOpenId] = useState<string | null>(null)
 
-  if (longRunning.length === 0) {
-    return (
-      <section className="flex flex-col gap-1">
-        <h3 className="px-1 text-[11px] font-medium text-muted-foreground">长期运行</h3>
-        <p className="px-1 text-[11px] text-muted-foreground">
-          还没有选进这里的脚本。在主窗口点脚本旁的面板图标，或在 .devhub.yaml 里写 overlay: true。
-        </p>
-      </section>
-    )
-  }
+  if (longRunning.length === 0) return null
 
   return (
     <section className="flex flex-col gap-1">

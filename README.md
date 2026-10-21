@@ -89,7 +89,7 @@ scripts:
     cwd: deploy # optional, relative to the project; cannot leave it
 ```
 
-Changes apply on refresh or when the window regains focus; mistakes are reported in the script list with a line number or field path. A script may also set `favorite: true` (buttons on the floating panel), `overlay: true` (its long-running list), `confirm: true` (ask before running), and `status` (building / ready / error from its output; presets `webpack` and `tstl`). The window title bar (next to Settings), the tray menu, or Ctrl+Alt+D opens the panel. Its opacity (30%–100%) is in Settings and on the panel.
+Changes apply on refresh or when the window regains focus; mistakes are reported in the script list with a line number or field path. A script may also set `favorite: true` (buttons on the floating panel), `overlay: true` (its long-running list), `confirm: true` (ask before running), and `status` (building / ready / error from its output; presets `webpack` and `tstl`). The window title bar (next to Settings), the tray menu, or Ctrl+Alt+D opens the panel. Its opacity (30%–100%) is in Settings and on the panel. The panel hugs its content; drag an edge to set the width, and a vertical drag sets the maximum height (taller content scrolls inside).
 
 ## Development
 

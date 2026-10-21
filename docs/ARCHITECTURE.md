@@ -188,5 +188,5 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 
 ## 悬浮面板与输出状态（ADR 0031）
 
-- 悬浮面板是主进程里的第二个 BrowserWindow（`overlay-controller.ts` / `overlay-window.ts`），不进入 `core/`。透明、无边框、不进任务栏、宽度 280；位置存在 `overlay.json`，显示时夹在工作区内。窗口标题栏（设置按钮旁）、托盘项、全局快捷键（默认 Ctrl+Alt+D）和 `toggleOverlay` 开关它。不透明度是设置项 `overlayOpacity`（30%–100%）。置顶、隐藏、打开主窗口、聚焦某次运行走 ShellApi。renderer 用 `?view=overlay` 画同一套数据。
+- 悬浮面板是主进程里的第二个 BrowserWindow（`overlay-controller.ts` / `overlay-window.ts`），不进入 `core/`。透明、无边框、不进任务栏；默认宽 280，高度贴合内容。空的长期运行或收藏区块不占位，两个都空时只留一行说明。拖卡片边缘改大小（透明窗口没有系统缩放边，把手在卡片内侧）：宽度记在 `overlay.json`，上下拖过的高度是上限，内容更高时在里面滚动，更矮时窗口再缩回去。位置同样存在 `overlay.json`，显示时夹在工作区内。窗口标题栏（设置按钮旁）、托盘项、全局快捷键（默认 Ctrl+Alt+D）和 `toggleOverlay` 开关它。不透明度是设置项 `overlayOpacity`（30%–100%）。置顶、隐藏、打开主窗口、聚焦某次运行、内容高度和拖拽尺寸走 ShellApi。renderer 用 `?view=overlay` 画同一套数据。
 - `.devhub.yaml` 可为脚本声明 `status`（预设 `webpack` / `tstl`，或 `busy` / `ready` / `error` 正则）、`confirm`、`favorite`、`overlay`。`overlay: true` 才进入悬浮面板的长期运行列表；只写 `status` 不会自动放进去。本机选择在 `overlay-scripts.json`，覆盖文件里的 `overlay`，变更走 `overlay-scripts-updated`。`output-status-monitor` 只听事件总线，在去掉 ANSI 的最近输出里取最后一次匹配，用 `run-output-status` 推送；不改 RunManager。本机收藏在 `favorites.json`，覆盖文件里的 `favorite`，变更走 `favorites-updated`。悬浮面板底部按钮仍是收藏。

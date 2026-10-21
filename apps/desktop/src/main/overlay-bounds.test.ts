@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clampOverlayFrame,
   clampOverlayPosition,
   defaultOverlayPosition,
-  overlaySizeFor,
-  parseOverlayPlacement
+  fitOverlayHeight,
+  parseOverlayPlacement,
+  resizeOverlayFrame
 } from './overlay-bounds'
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 }
@@ -24,22 +26,79 @@ describe('overlay placement', () => {
     expect(clampOverlayPosition({ x: 100, y: 80 }, size, workArea)).toEqual({ x: 100, y: 80 })
   })
 
-  it('shrinks the height to the work area and still clamps', () => {
+  it('keeps a panel taller than the work area pinned to the top-left', () => {
     const short = { x: 0, y: 0, width: 800, height: 400 }
-    expect(overlaySizeFor(short).height).toBe(376)
     expect(clampOverlayPosition({ x: 0, y: 0 }, { width: 280, height: 900 }, short)).toEqual({
       x: 0,
       y: 0
     })
   })
 
-  it('ignores a corrupt saved placement', () => {
+  it('hugs content unless a vertical drag set a lower ceiling', () => {
+    expect(fitOverlayHeight(220, undefined, 1080)).toBe(220)
+    expect(fitOverlayHeight(900, undefined, 400)).toBe(376)
+    expect(fitOverlayHeight(900, 400, 1080)).toBe(400)
+    expect(fitOverlayHeight(120, 400, 1080)).toBe(120)
+    expect(fitOverlayHeight(20, undefined, 1080)).toBe(48)
+  })
+
+  it('grows from the east edge and from the west edge without leaving the min width', () => {
+    const start = { x: 100, y: 40, width: 280, height: 200 }
+    const limits = { minWidth: 220, maxWidth: 520, minHeight: 48, maxHeight: 800 }
+    expect(resizeOverlayFrame(start, 40, 0, 'e', limits)).toEqual({
+      x: 100,
+      y: 40,
+      width: 320,
+      height: 200
+    })
+    expect(resizeOverlayFrame(start, -40, 0, 'w', limits)).toEqual({
+      x: 60,
+      y: 40,
+      width: 320,
+      height: 200
+    })
+    expect(resizeOverlayFrame(start, -200, 10, 'sw', limits)).toEqual({
+      x: -100,
+      y: 40,
+      width: 480,
+      height: 210
+    })
+    expect(resizeOverlayFrame(start, -80, 0, 'e', limits).width).toBe(220)
+  })
+
+  it('clamps a dragged frame into the work area', () => {
+    const work = { x: 0, y: 0, width: 800, height: 400 }
+    expect(clampOverlayFrame({ x: 0, y: 0, width: 600, height: 900 }, work)).toEqual({
+      x: 0,
+      y: 0,
+      width: 520,
+      height: 376
+    })
+    expect(clampOverlayFrame({ x: 700, y: 300, width: 280, height: 200 }, work)).toEqual({
+      x: 520,
+      y: 200,
+      width: 280,
+      height: 200
+    })
+  })
+
+  it('reads a saved width and ceiling, and still accepts a file from before resizing', () => {
     expect(parseOverlayPlacement({ x: 10, y: 20, alwaysOnTop: false })).toEqual({
       x: 10,
       y: 20,
       alwaysOnTop: false
     })
+    expect(
+      parseOverlayPlacement({ x: 10, y: 20, alwaysOnTop: true, width: 360, maxHeight: 240 })
+    ).toEqual({
+      x: 10,
+      y: 20,
+      alwaysOnTop: true,
+      width: 360,
+      maxHeight: 240
+    })
     expect(parseOverlayPlacement({ x: '10', y: 20, alwaysOnTop: true })).toBeNull()
+    expect(parseOverlayPlacement({ x: 10, y: 20, alwaysOnTop: true, width: 'wide' })).toBeNull()
     expect(parseOverlayPlacement(null)).toBeNull()
   })
 })

@@ -2,6 +2,7 @@ import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { parseExternalUrl } from './core/shell/external-url'
+import { overlayMinHeight, overlayMinWidth } from './overlay-bounds'
 
 export interface OverlayWindowOptions {
   x: number
@@ -21,7 +22,13 @@ export function createOverlayWindow(options: OverlayWindowOptions): BrowserWindo
     show: false,
     frame: false,
     transparent: true,
-    resizable: false,
+    // Native edges are unreliable on a transparent frameless window (Windows draws no grip).
+    // Resizing still goes through setBounds from the in-window handles; this keeps the OS
+    // from blocking those size changes. thickFrame would add an opaque border.
+    resizable: true,
+    thickFrame: false,
+    minWidth: overlayMinWidth,
+    minHeight: overlayMinHeight,
     maximizable: false,
     minimizable: false,
     fullscreenable: false,

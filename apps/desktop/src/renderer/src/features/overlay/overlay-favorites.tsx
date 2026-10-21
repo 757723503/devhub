@@ -18,35 +18,31 @@ export function OverlayFavorites({
   scripts: Script[]
   runs: Run[]
   onError: (error: Error, retry?: () => void) => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const favorites = useScriptFavorites()
   const starred = scripts.filter((script) =>
     isScriptFavorite(script, favorites.data ?? [], projectId)
   )
 
+  if (starred.length === 0) return null
+
   return (
     <section className="flex flex-col gap-1">
       <h3 className="px-1 text-[11px] font-medium text-muted-foreground">收藏</h3>
-      {starred.length === 0 ? (
-        <p className="px-1 text-[11px] text-muted-foreground">
-          在主窗口给脚本加星，或在 .devhub.yaml 写 favorite: true。
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          {starred.map((script) => (
-            <FavoriteAction
-              key={script.id}
-              projectId={projectId}
-              script={script}
-              run={runs.find(
-                (run) =>
-                  run.kind === 'script' && run.projectId === projectId && run.scriptId === script.id
-              )}
-              onError={onError}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col gap-1">
+        {starred.map((script) => (
+          <FavoriteAction
+            key={script.id}
+            projectId={projectId}
+            script={script}
+            run={runs.find(
+              (run) =>
+                run.kind === 'script' && run.projectId === projectId && run.scriptId === script.id
+            )}
+            onError={onError}
+          />
+        ))}
+      </div>
     </section>
   )
 }

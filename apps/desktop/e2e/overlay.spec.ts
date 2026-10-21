@@ -31,6 +31,19 @@ const watchJs = [
   '}, 200)'
 ].join('\n')
 
+async function overlayBounds(
+  app: ElectronApplication
+): Promise<{ width: number; height: number } | null> {
+  return app.evaluate(({ BrowserWindow }) => {
+    const panel = BrowserWindow.getAllWindows().find((window) =>
+      window.webContents.getURL().includes('view=overlay')
+    )
+    if (!panel) return null
+    const bounds = panel.getBounds()
+    return { width: bounds.width, height: bounds.height }
+  })
+}
+
 async function openOverlay(app: ElectronApplication, page: Page): Promise<Page> {
   await page.getByRole('button', { name: '显示或隐藏悬浮面板' }).click()
   await expect.poll(() => app.windows().length).toBeGreaterThan(1)
@@ -69,6 +82,8 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('button', { name: '不透明度' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行收藏的脚本 同步拉取' })).toBeVisible()
   await expect(overlay.getByLabel('空闲')).toBeVisible()
+  await expect.poll(async () => (await overlayBounds(app))?.height ?? 0).toBeLessThan(520)
+  const hugged = await overlayBounds(app)
 
   await overlay.getByRole('button', { name: '运行 全量dev' }).click()
   await expect(overlay.getByLabel('就绪')).toBeVisible()
@@ -79,6 +94,9 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
     .getByText('全量dev', { exact: true })
     .click()
   await expect(overlay.locator('pre')).toContainText('compiled successfully')
+  await expect
+    .poll(async () => (await overlayBounds(app))?.height ?? 0)
+    .toBeGreaterThan((hugged?.height ?? 0) + 24)
 
   await overlay.getByRole('button', { name: '在主窗口打开 全量dev' }).click()
   await expect(page.locator('.xterm-rows')).toContainText('compiled successfully')
@@ -89,6 +107,19 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('heading', { name: '确认运行「云端部署」？' })).toBeHidden()
 
   await overlay.screenshot({ path: testInfo.outputPath('overlay.png') })
+
+  const beforeResize = await overlayBounds(app)
+  const edge = overlay.locator('[data-overlay-resize="e"]')
+  const box = await edge.boundingBox()
+  if (!box || !beforeResize) throw new Error('overlay resize handle is missing')
+  await overlay.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await overlay.mouse.down()
+  // Drag inward so the pointer stays inside the window; the east edge still tracks it.
+  await overlay.mouse.move(box.x + box.width / 2 - 70, box.y + box.height / 2, { steps: 10 })
+  await overlay.mouse.up()
+  await expect
+    .poll(async () => (await overlayBounds(app))?.width ?? 999)
+    .toBeLessThan(beforeResize.width - 40)
 
   await overlay.getByRole('button', { name: '隐藏悬浮面板' }).click()
   // A hidden Electron window can keep document.visibilityState as "visible".
@@ -102,4 +133,21 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
       })
     )
     .toBe(false)
+})
+
+test('overlay shrinks when nothing is listed', async ({
+  launchDevhub,
+  createProject
+}, testInfo) => {
+  const dir = await createProject('plain', {
+    '.devhub.yaml': ['scripts:', '  扫描资源:', '    command: node -e "console.log(1)"'].join('\n')
+  })
+  const { app, page } = await launchDevhub()
+  await addProjectViaApi(page, dir)
+  const overlay = await openOverlay(app, page)
+  await expect(overlay.getByText('没有要放在悬浮面板上的脚本')).toBeVisible()
+  await expect(overlay.getByRole('heading', { name: '长期运行' })).toHaveCount(0)
+  await expect(overlay.getByRole('heading', { name: '收藏' })).toHaveCount(0)
+  await expect.poll(async () => (await overlayBounds(app))?.height ?? 999).toBeLessThan(180)
+  await overlay.screenshot({ path: testInfo.outputPath('overlay-empty.png') })
 })

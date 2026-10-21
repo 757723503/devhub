@@ -9,7 +9,7 @@
 
 ## 决策
 
-- 悬浮面板是第二个 BrowserWindow（透明、无边框、约 280px 宽、不出现在任务栏），由主进程的 `overlay-controller.ts` 创建。位置存在 `userData/overlay.json`，显示时夹回当前显示器的工作区，默认在工作区右上角。置顶可关。窗口标题栏（设置按钮旁边）、托盘菜单、全局快捷键和 ShellApi 的 `toggleOverlay` 都能开关；快捷键放在核心设置 `overlayShortcut`（默认 `CommandOrControl+Alt+D`，即 Windows 的 Ctrl+Alt+D），设置页可改。整体不透明度是 `overlayOpacity`（0.3–1），设置页和面板标题栏都能改。面板上的按钮、隐藏、打开主窗口走 ShellApi，不进 `DevhubApi`。
+- 悬浮面板是第二个 BrowserWindow（透明、无边框、不出现在任务栏），由主进程的 `overlay-controller.ts` 创建。位置、用户拖出的宽度、以及上下拖动留下的高度上限存在 `userData/overlay.json`，显示时夹回当前显示器的工作区，默认在工作区右上角，默认宽 280。没拖过高度时窗口贴着内容；拖过之后那次高度是上限，内容更高就在面板里滚动，更矮就再缩回去。空区块不渲染，长期运行和收藏都空时只留一行说明。透明无边框窗口在 Windows 上没有系统缩放边，所以卡片内侧放了拖拽把手，用 `setBounds` 改大小。置顶可关。窗口标题栏（设置按钮旁边）、托盘菜单、全局快捷键和 ShellApi 的 `toggleOverlay` 都能开关；快捷键放在核心设置 `overlayShortcut`（默认 `CommandOrControl+Alt+D`，即 Windows 的 Ctrl+Alt+D），设置页可改。整体不透明度是 `overlayOpacity`（0.3–1），设置页和面板标题栏都能改。面板上的按钮、隐藏、打开主窗口、内容高度和拖拽尺寸走 ShellApi，不进 `DevhubApi`。
 - 面板复用同一份 renderer（`?view=overlay`）和现有的脚本 / 运行查询。双击一行（或「在主窗口打开」）让主窗口聚焦到该运行的终端标签。进程启动、停止仍只走 RunManager。
 - `.devhub.yaml` 的脚本可以写 `status`：预设 `webpack`、`tstl`，或 `{ busy, ready, error }` 正则。`output-status-monitor` 只订阅事件总线，去掉 ANSI 后在最近输出里取**最后一次**匹配，因此 watch 可以在构建中、就绪、出错之间来回。结果用新事件 `run-output-status` 推送，主窗口脚本行和悬浮面板都显示。没有 `status` 的脚本仍走原来的端口健康检查。预设是按这些工具的常见输出写的，项目对不上就改正则。
 - `confirm: true` 时，点击运行先弹出确认。批量任务直接调 core，不经过这个对话框。

@@ -248,6 +248,10 @@ export interface ShellApi {
   focusRun(projectId: string, runId: string): Promise<void>
   /** Fired in the main window when the panel asks to show a run. */
   onFocusRun(listener: (target: OverlayFocusTarget) => void): () => void
+  /** Content height of the floating panel, so the window can hug it. */
+  setOverlayContentHeight(height: number): Promise<void>
+  /** Drag an edge of the floating panel. `dx`/`dy` are screen pixels since pointer-down. */
+  resizeOverlay(gesture: OverlayResizeGesture): Promise<void>
 }
 
 export interface OverlayWindowState {
@@ -259,6 +263,16 @@ export const overlayFocusSchema = z.object({
   runId: z.string().trim().min(1).max(200)
 })
 export type OverlayFocusTarget = z.infer<typeof overlayFocusSchema>
+
+export const overlayResizeEdges = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+export const overlayResizeSchema = z.object({
+  dx: z.number().finite().min(-8000).max(8000),
+  dy: z.number().finite().min(-8000).max(8000),
+  edge: z.enum(overlayResizeEdges),
+  phase: z.enum(['start', 'move', 'end'])
+})
+export type OverlayResizeEdge = z.infer<typeof overlayResizeSchema>['edge']
+export type OverlayResizeGesture = z.infer<typeof overlayResizeSchema>
 
 export interface WindowState {
   /** Host OS (`win32` / `linux` / `darwin`): macOS keeps its own traffic-light buttons. */
@@ -305,5 +319,7 @@ export const shellChannel = {
   showMainWindow: 'shell:showMainWindow',
   focusRun: 'shell:focusRun',
   /** Pushed to the main window when the panel asks to open a run. */
-  focusRunTarget: 'shell:focusRunTarget'
+  focusRunTarget: 'shell:focusRunTarget',
+  setOverlayContentHeight: 'shell:setOverlayContentHeight',
+  resizeOverlay: 'shell:resizeOverlay'
 } as const
