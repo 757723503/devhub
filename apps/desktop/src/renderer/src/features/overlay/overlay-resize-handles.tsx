@@ -1,14 +1,15 @@
-import { useRef } from 'react'
+import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import type { OverlayResizeEdge, OverlayResizeGesture } from '@devhub/shared'
 import { shell } from '@renderer/api'
 import { cn } from '@renderer/lib/utils'
 import { resumeOverlayFit, suspendOverlayFit } from './overlay-fit-pause'
 
+/** At least 8px so the grip is wider than the old 6px sliver and easy to hit. */
 const handles: { edge: OverlayResizeEdge; className: string }[] = [
-  { edge: 'n', className: 'top-0 right-3 left-3 h-1.5 cursor-ns-resize' },
-  { edge: 's', className: 'right-3 bottom-0 left-3 h-1.5 cursor-ns-resize' },
-  { edge: 'e', className: 'top-3 right-0 bottom-3 w-1.5 cursor-ew-resize' },
-  { edge: 'w', className: 'top-3 bottom-3 left-0 w-1.5 cursor-ew-resize' },
+  { edge: 'n', className: 'top-0 right-3 left-3 h-2 cursor-ns-resize' },
+  { edge: 's', className: 'right-3 bottom-0 left-3 h-2 cursor-ns-resize' },
+  { edge: 'e', className: 'top-3 right-0 bottom-3 w-2 cursor-ew-resize' },
+  { edge: 'w', className: 'top-3 bottom-3 left-0 w-2 cursor-ew-resize' },
   { edge: 'nw', className: 'top-0 left-0 size-3 cursor-nwse-resize' },
   { edge: 'ne', className: 'top-0 right-0 size-3 cursor-nesw-resize' },
   { edge: 'sw', className: 'bottom-0 left-0 size-3 cursor-nesw-resize' },
@@ -16,8 +17,8 @@ const handles: { edge: OverlayResizeEdge; className: string }[] = [
 ]
 
 /**
- * Invisible grips inside the card. A transparent frameless window has no native resize border
- * on Windows, so the drag is tracked here and applied with setBounds.
+ * Grips inside the card. Windows has no usable native resize border on this window
+ * (the OS flag would swallow these edges), so the drag is tracked here and applied with setBounds.
  */
 export function OverlayResizeHandles(): React.JSX.Element | null {
   if (!shell) return null
@@ -65,21 +66,30 @@ function ResizeHandle({
     send({ ...next, edge, phase: 'move' })
   }
 
+  const begin = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
+    // Capture phase: the card's move listener is native and runs before React's
+    // bubble handler, so stopping here is what keeps a grip from also moving the window.
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    origin.current = { x: event.screenX, y: event.screenY }
+    pending.current = null
+    held.current = true
+    // Before the start IPC, so a content-height report cannot land mid-drag.
+    suspendOverlayFit()
+    send({ dx: 0, dy: 0, edge, phase: 'start' })
+  }
+
   return (
     <div
       data-overlay-resize={edge}
-      className={cn('app-no-drag pointer-events-auto absolute', className)}
-      onPointerDown={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        event.currentTarget.setPointerCapture(event.pointerId)
-        origin.current = { x: event.screenX, y: event.screenY }
-        pending.current = null
-        held.current = true
-        // Before the start IPC, so a content-height report cannot land mid-drag.
-        suspendOverlayFit()
-        send({ dx: 0, dy: 0, edge, phase: 'start' })
-      }}
+      data-no-drag
+      className={cn(
+        'app-no-drag pointer-events-auto absolute touch-none bg-foreground/[0.03]',
+        className
+      )}
+      onPointerDownCapture={begin}
       onPointerMove={(event) => {
         if (!origin.current) return
         pending.current = {
@@ -94,6 +104,10 @@ function ResizeHandle({
         finish(event.screenX - origin.current.x, event.screenY - origin.current.y)
       }}
       onPointerCancel={(event) => {
+        if (!origin.current) return
+        finish(event.screenX - origin.current.x, event.screenY - origin.current.y)
+      }}
+      onLostPointerCapture={(event) => {
         if (!origin.current) return
         finish(event.screenX - origin.current.x, event.screenY - origin.current.y)
       }}

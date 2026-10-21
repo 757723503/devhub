@@ -32,7 +32,7 @@ import {
   type Rect
 } from './overlay-bounds'
 import { overlayShortcutLabel, syncOverlayShortcut } from './overlay-shortcut'
-import { createOverlayWindow } from './overlay-window'
+import { applyOverlayBounds, createOverlayWindow } from './overlay-window'
 
 export interface OverlayControllerDeps {
   /** Directory for the saved position (`overlay.json`). */
@@ -148,7 +148,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
       return
     }
     if (current.x !== frame.x || current.y !== frame.y) ignoreMoves += 1
-    target.setBounds(frame)
+    applyOverlayBounds(target, frame)
   }
 
   const framesClose = (current: Rect, frame: Rect): boolean =>

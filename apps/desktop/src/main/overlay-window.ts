@@ -22,10 +22,12 @@ export function createOverlayWindow(options: OverlayWindowOptions): BrowserWindo
     show: false,
     frame: false,
     transparent: true,
-    // Native edges are unreliable on a transparent frameless window (Windows draws no grip).
-    // Resizing still goes through setBounds from the in-window handles; this keeps the OS
-    // from blocking those size changes. thickFrame would add an opaque border.
-    resizable: true,
+    // Windows treats the outer pixels of a resizable frameless window as a non-client
+    // border. Those clicks never reach the page, and the controller cancels the native
+    // resize, so the in-window grips would do nothing. Stay non-resizable there;
+    // applyOverlayBounds unlocks only for a programmatic setBounds. thickFrame would
+    // add an opaque border.
+    resizable: process.platform !== 'win32',
     thickFrame: false,
     minWidth: overlayMinWidth,
     minHeight: overlayMinHeight,
@@ -55,6 +57,21 @@ export function createOverlayWindow(options: OverlayWindowOptions): BrowserWindo
   })
   loadOverlayRenderer(window)
   return window
+}
+
+/**
+ * Applies a frame. On Windows the window is not OS-resizable, and setBounds
+ * ignores size changes until it is. The unlock stays inside this call so the
+ * non-client border is not up while the user is dragging a grip.
+ */
+export function applyOverlayBounds(
+  target: BrowserWindow,
+  frame: { x: number; y: number; width: number; height: number }
+): void {
+  const unlock = process.platform === 'win32' && !target.isResizable()
+  if (unlock) target.setResizable(true)
+  target.setBounds(frame)
+  if (unlock) target.setResizable(false)
 }
 
 function loadOverlayRenderer(window: BrowserWindow): void {

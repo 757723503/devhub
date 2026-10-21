@@ -47,6 +47,44 @@ async function overlayBounds(app: ElectronApplication): Promise<{
   })
 }
 
+async function dragOverlayEdge(
+  overlay: Page,
+  app: ElectronApplication,
+  edge: 'e' | 'w',
+  dx: number
+): Promise<{ before: number; after: number }> {
+  const handle = overlay.locator(`[data-overlay-resize="${edge}"]`)
+  const box = await handle.boundingBox()
+  const before = await overlayBounds(app)
+  if (!box || !before) throw new Error(`overlay ${edge} handle is missing`)
+  expect(box.width).toBeGreaterThanOrEqual(6)
+  expect(box.height).toBeGreaterThanOrEqual(6)
+  await expect.poll(() => handle.evaluate((el) => getComputedStyle(el).cursor)).toBe('ew-resize')
+  const x = box.x + box.width / 2
+  const y = box.y + Math.min(box.height / 2, 80)
+  const hit = await overlay.evaluate(
+    ({ px, py }) => {
+      const el = document.elementFromPoint(px, py)
+      const grip = el?.closest('[data-overlay-resize]')
+      return grip?.getAttribute('data-overlay-resize') ?? ''
+    },
+    { px: x, py: y }
+  )
+  expect(hit).toBe(edge)
+  await overlay.mouse.move(x, y)
+  await overlay.mouse.down()
+  await overlay.mouse.move(x + dx, y, { steps: 6 })
+  await overlay.mouse.up()
+  let after = before.width
+  await expect
+    .poll(async () => {
+      after = (await overlayBounds(app))?.width ?? before.width
+      return Math.abs(after - before.width)
+    })
+    .toBeGreaterThan(20)
+  return { before: before.width, after }
+}
+
 async function popoverInsideOverlay(overlay: Page): Promise<boolean> {
   return overlay.locator('[data-slot="popover-content"]').evaluate((el) => {
     const rect = el.getBoundingClientRect()
@@ -174,6 +212,7 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect.poll(() => regionOf(overlay.getByRole('button', { name: '停止 全量dev' }))).toBe('')
   await expect.poll(() => regionOf(overlay.locator('pre'))).toBe('')
 
+  // Blank card area moves the window. The heading is not a control.
   const beforeMove = await overlayBounds(app)
   const heading = overlay.getByRole('heading', { name: '长期运行' })
   const headingBox = await heading.boundingBox()
@@ -200,16 +239,21 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
     .poll(() => overlay.locator('pre').evaluate((el) => getComputedStyle(el).userSelect))
     .toBe('text')
 
+  const widened = await dragOverlayEdge(overlay, app, 'w', -48)
+  expect(widened.after).toBeGreaterThan(widened.before)
+
   const beforeResize = await overlayBounds(app)
   const edge = overlay.locator('[data-overlay-resize="e"]')
   const box = await edge.boundingBox()
   if (!box || !beforeResize) throw new Error('overlay resize handle is missing')
   const widths: number[] = []
-  await overlay.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const gripX = box.x + box.width / 2
+  const gripY = box.y + Math.min(box.height / 2, 80)
+  await overlay.mouse.move(gripX, gripY)
   await overlay.mouse.down()
   // Drag inward in steps and sample the width. A flicker would jump the width back up.
   for (let step = 1; step <= 8; step++) {
-    await overlay.mouse.move(box.x + box.width / 2 - step * 9, box.y + box.height / 2)
+    await overlay.mouse.move(gripX - step * 9, gripY)
     const bounds = await overlayBounds(app)
     if (bounds) widths.push(bounds.width)
   }
