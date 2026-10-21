@@ -72,6 +72,17 @@ describe('custom shells in settings', () => {
     expect(settingsPatchSchema.parse({ stopGraceSeconds: 4 })).toEqual({ stopGraceSeconds: 4 })
   })
 
+  it('loads hook volume and an empty hook document into settings written before them', () => {
+    const { hookVolume: _volume, hooks: _hooks, ...older } = defaultSettings
+    void _volume
+    void _hooks
+    expect(settingsSchema.parse(older).hookVolume).toBe(1)
+    expect(settingsSchema.parse(older).hooks).toEqual({ hooks: {} })
+    expect(settingsPatchSchema.parse({ hookVolume: 0.5 })).toEqual({ hookVolume: 0.5 })
+    expect(settingsPatchSchema.parse({ stopGraceSeconds: 4 })).toEqual({ stopGraceSeconds: 4 })
+    expect(settingsPatchSchema.safeParse({ hookVolume: 1.2 }).success).toBe(false)
+  })
+
   it('accepts a custom shell as the default shell, and rejects malformed ids', () => {
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-wsl' }).success).toBe(true)
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-../x' }).success).toBe(false)

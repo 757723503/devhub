@@ -47,6 +47,7 @@ export const remoteAccess = {
   removeRun: 'control',
   getSettings: 'read',
   updateSettings: 'local',
+  testHook: 'local',
   listGroups: 'read',
   saveGroup: 'local',
   deleteGroup: 'local',

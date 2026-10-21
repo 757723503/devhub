@@ -1,5 +1,5 @@
 import type { ElectronApplication, Locator, Page } from '@playwright/test'
-import { addProjectViaApi, test, expect } from './fixtures'
+import { addProjectViaApi, test, expect, type DevhubWindow } from './fixtures'
 
 const yaml = [
   'scripts:',
@@ -117,6 +117,16 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
 
   await overlay.getByRole('button', { name: '关闭状态提示音' }).click()
   await expect(overlay.getByRole('button', { name: '状态提示音已关闭，点击打开' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '状态提示音已关闭，点击打开' })).toBeVisible()
+  await overlay.getByRole('button', { name: '提示音音量' }).click()
+  const volume = overlay.getByRole('slider', { name: '提示音音量' })
+  await volume.fill('0.4')
+  await volume.blur()
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as DevhubWindow).devhub.getSettings()))
+    .toMatchObject({ hookVolume: 0.4, notifyMuted: true })
+  await overlay.keyboard.press('Escape')
+  await expect(volume).toBeHidden()
   const regionOf = (locator: Locator): Promise<string> =>
     locator.evaluate((el) => {
       const read = (node: Element | null): string => {

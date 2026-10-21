@@ -23,6 +23,7 @@ let core: DevhubCore | null = null
 // From settings; read synchronously when the window closes.
 let closeAction: 'tray' | 'quit' = 'tray'
 let notifyMuted = false
+let hookVolume = 1
 let detachAlerts: (() => void) | null = null
 let disposed = false
 
@@ -81,17 +82,20 @@ if (!app.requestSingleInstanceLock()) {
       (settings) => {
         closeAction = settings.closeAction
         notifyMuted = settings.notifyMuted
+        hookVolume = settings.hookVolume
       },
       () => undefined
     )
     detachAlerts = attachStatusAlerts({
       subscribe: (listener) => appCore.subscribe(listener),
-      muted: () => notifyMuted
+      muted: () => notifyMuted,
+      volume: () => hookVolume
     })
     appCore.subscribe((event) => {
       if (event.type !== 'settings-updated') return
       closeAction = event.settings.closeAction
       notifyMuted = event.settings.notifyMuted
+      hookVolume = event.settings.hookVolume
     })
 
     overlay = createOverlayController({

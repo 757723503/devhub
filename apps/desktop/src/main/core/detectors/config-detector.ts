@@ -4,6 +4,7 @@ import {
   projectConfigSchema,
   resolveNotify,
   resolveOutputStatus,
+  type ProjectConfig,
   type Script
 } from '@devhub/shared'
 import { inferNpmPorts } from '../ports/infer-ports'
@@ -16,6 +17,42 @@ export interface ConfigDetectorDeps {
 
 export const configFileNames = ['.devhub.yaml', '.devhub.yml']
 
+export interface LoadedProjectConfig {
+  fileName: string
+  config: ProjectConfig
+}
+
+/** The project's `.devhub.yaml`, or null when the file is absent. Throws when it is malformed. */
+export async function loadProjectConfig(dir: string): Promise<LoadedProjectConfig | null> {
+  let fileName = ''
+  let text: string | null = null
+  for (const name of configFileNames) {
+    text = await readOptionalFile(join(dir, name))
+    fileName = name
+    if (text !== null) break
+  }
+  if (text === null) return null
+
+  let raw: unknown
+  try {
+    raw = parse(text) ?? {}
+  } catch (error) {
+    const line = error instanceof YAMLParseError ? error.linePos?.[0]?.line : undefined
+    const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
+    throw new Error(`${fileName}${line ? ` 第 ${line} 行` : ''}不是有效的 YAML：${reason}`, {
+      cause: error
+    })
+  }
+
+  const parsed = projectConfigSchema.safeParse(raw)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    const where = issue?.path.length ? issue.path.join('.') : '文件'
+    throw new Error(`${fileName} 格式不正确：${where} ${issue?.message ?? ''}`.trim())
+  }
+  return { fileName, config: parsed.data }
+}
+
 /**
  * Custom scripts from the project's optional `.devhub.yaml`, for commands no detector finds
  * (docker compose, one module of a multi-module build, commands with special flags).
@@ -26,35 +63,12 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
     source: 'custom',
 
     async detect(dir) {
-      let fileName = ''
-      let text: string | null = null
-      for (const name of configFileNames) {
-        text = await readOptionalFile(join(dir, name))
-        fileName = name
-        if (text !== null) break
-      }
-      if (text === null) return []
-
-      let raw: unknown
-      try {
-        raw = parse(text) ?? {}
-      } catch (error) {
-        const line = error instanceof YAMLParseError ? error.linePos?.[0]?.line : undefined
-        const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
-        throw new Error(`${fileName}${line ? ` 第 ${line} 行` : ''}不是有效的 YAML：${reason}`, {
-          cause: error
-        })
-      }
-
-      const parsed = projectConfigSchema.safeParse(raw)
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0]
-        const where = issue?.path.length ? issue.path.join('.') : '文件'
-        throw new Error(`${fileName} 格式不正确：${where} ${issue?.message ?? ''}`.trim())
-      }
+      const loaded = await loadProjectConfig(dir)
+      if (!loaded) return []
+      const { fileName, config } = loaded
 
       const scripts: Script[] = []
-      for (const [name, entry] of Object.entries(parsed.data.scripts)) {
+      for (const [name, entry] of Object.entries(config.scripts)) {
         const command =
           typeof entry.command === 'string'
             ? entry.command

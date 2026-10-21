@@ -38,7 +38,7 @@ export type DevhubEvent =
   | {
       type: 'status-notify'
       scriptName: string
-      phase: 'ready' | 'error'
+      phase: 'ready' | 'error' | 'start' | 'exit'
       sound?: string
       toast: boolean
       body: string

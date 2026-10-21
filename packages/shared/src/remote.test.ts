@@ -36,6 +36,7 @@ describe('remoteAccess', () => {
     'addWorkspace',
     'updateWorkspace',
     'updateSettings',
+    'testHook',
     'saveGroup',
     'openInEditor',
     'openInSystemTerminal',

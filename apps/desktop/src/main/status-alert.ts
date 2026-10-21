@@ -1,10 +1,11 @@
+import { createHash } from 'crypto'
 import { spawn } from 'child_process'
-import { access, mkdir, writeFile } from 'fs/promises'
+import { access, mkdir, readFile, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { Notification } from 'electron'
 import type { DevhubEvent } from '@devhub/shared'
-import { resolveNotifyWav, toneWav } from './status-alert-sound'
+import { resolveNotifyWav, scaleWav, toneWav } from './status-alert-sound'
 
 let sounds: Promise<{ ready: string; error: string }> | null = null
 
@@ -47,30 +48,45 @@ function playFile(filePath: string): void {
   child.unref()
 }
 
-async function playSound(sound: string, projectPath: string): Promise<void> {
+async function playSound(sound: string, projectPath: string, volume: number): Promise<void> {
+  if (volume <= 0) return
+  let file: string | null
   if (sound === 'default' || sound === 'error') {
     const files = await builtinSounds()
-    playFile(sound === 'default' ? files.ready : files.error)
+    file = sound === 'default' ? files.ready : files.error
+  } else {
+    file = resolveNotifyWav(sound, projectPath)
+    if (!file) {
+      console.warn('[notify] sound must be default, error, or a .wav path')
+      return
+    }
+    try {
+      await access(file)
+    } catch {
+      console.warn('[notify] sound file missing:', file)
+      return
+    }
+  }
+  if (volume >= 0.999) {
+    playFile(file)
     return
   }
-  const file = resolveNotifyWav(sound, projectPath)
-  if (!file) {
-    console.warn('[notify] sound must be default, error, or a .wav path')
-    return
-  }
-  try {
-    await access(file)
-  } catch {
-    console.warn('[notify] sound file missing:', file)
-    return
-  }
-  playFile(file)
+  const scaled = scaleWav(await readFile(file), volume)
+  const id = createHash('sha1').update(file).digest('hex').slice(0, 8)
+  const dest = join(
+    tmpdir(),
+    'devhub-notify',
+    `vol-${Math.round(volume * 100)}-${id}-${basename(file)}`
+  )
+  await writeFile(dest, scaled)
+  playFile(dest)
 }
 
-/** Shows the Windows toast and plays the wav. Mute skips the sound only. */
+/** Shows the toast and plays the wav. Mute and a zero volume skip the sound only. */
 export function attachStatusAlerts(deps: {
   subscribe: (listener: (event: DevhubEvent) => void) => () => void
   muted: () => boolean
+  volume: () => number
 }): () => void {
   return deps.subscribe((event) => {
     if (event.type !== 'status-notify') return
@@ -78,7 +94,7 @@ export function attachStatusAlerts(deps: {
       new Notification({ title: event.scriptName, body: event.body }).show()
     }
     if (!event.sound || deps.muted()) return
-    void playSound(event.sound, event.projectPath).catch((error: unknown) =>
+    void playSound(event.sound, event.projectPath, deps.volume()).catch((error: unknown) =>
       console.warn('[notify] could not play sound', error)
     )
   })

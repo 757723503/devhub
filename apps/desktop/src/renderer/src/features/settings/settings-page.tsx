@@ -15,6 +15,7 @@ import {
 } from '@renderer/features/terminal/terminal-prefs'
 import { appearance, type ThemePreference } from '@renderer/lib/appearance'
 import { CustomShellsEditor } from './custom-shells-editor'
+import { HooksSection } from './hooks-section'
 import { RemoteSection } from './remote-section'
 import { StylePicker } from './style-picker'
 import { UpdatesSection } from './updates-section'
@@ -64,6 +65,7 @@ export function SettingsPage({ onClose }: { onClose: () => void }): React.JSX.El
                   />
                   <EditorsSection save={save} onError={setError} />
                   <ProcessSection settings={settings.data} save={save} />
+                  <HooksSection settings={settings.data} save={save} />
                 </>
               )}
               <RemoteSection onError={setError} />

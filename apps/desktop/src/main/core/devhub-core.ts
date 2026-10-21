@@ -37,7 +37,9 @@ import {
   emptyFavoritesFile,
   favoritesFileSchema
 } from './favorites/favorite-service'
-import { createStatusNotifier } from './notify/status-notifier'
+import { runHookCommand } from './hooks/hook-command'
+import { createHookRunner } from './hooks/hook-runner'
+import { readProjectHooks } from './hooks/project-hooks'
 import { createOutputStatusMonitor } from './output-status/output-status-monitor'
 import {
   createOverlayScriptService,
@@ -281,13 +283,15 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     emit: (event) => events.emit(event)
   })
 
-  const statusNotifier = createStatusNotifier({
+  const hookRunner = createHookRunner({
     subscribe: (listener) => events.subscribe(listener),
+    getSettings: () => settings.get(),
     resolveScript: async (projectId, scriptId) => {
       try {
         const found = await scripts.find(projectId, scriptId)
         return {
           name: found.script.name,
+          projectName: found.project.name,
           projectPath: found.project.path,
           ...(found.script.notify ? { notify: found.script.notify } : {})
         }
@@ -295,7 +299,8 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
         return null
       }
     },
-    startCommand: (projectId, command, title) => runs.startCommand(projectId, command, title),
+    loadProjectHooks: (projectPath) => readProjectHooks(projectPath),
+    runCommand: (request) => runHookCommand(request),
     emit: (event) => events.emit(event)
   })
 
@@ -351,6 +356,7 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     removeRun: async (runId) => runs.remove(runId),
     getSettings: () => settings.get(),
     updateSettings: (patch) => settings.update(patch),
+    testHook: (event) => hookRunner.test(event),
     listGroups: () => groupService.list(),
     saveGroup: (input) => groupService.save(input),
     deleteGroup: async (groupId) => {
@@ -397,7 +403,7 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
       // Cancel sequences first so no step starts while the runs are being stopped.
       groupRunner.dispose()
       outputStatus.dispose()
-      statusNotifier.dispose()
+      hookRunner.dispose()
       health.dispose()
       await runs.dispose()
       // The runs just stopped are recorded as they exit; let those writes finish.

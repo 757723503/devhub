@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { customShellIdSchema, shellIdSchema } from './domain'
+import { emptyHooksDocument, hooksDocumentSchema } from './hooks'
 
 /**
  * Electron accelerator. `CommandOrControl` is Ctrl on Windows and Linux.
@@ -61,8 +62,12 @@ export const settingsSchema = z.object({
   overlayShortcut: overlayShortcutSchema.default(defaultOverlayShortcut),
   /** Whole-panel opacity, from 30% to 100%. Default matches files written before this field. */
   overlayOpacity: overlayOpacitySchema.default(defaultOverlayOpacity),
-  /** When true, status sounds stay quiet. Toasts and callback commands still run. */
-  notifyMuted: z.boolean().default(false)
+  /** When true, hook sounds stay quiet. Toasts and commands still run. */
+  notifyMuted: z.boolean().default(false),
+  /** Master gain for every hook sound, from silent to full. */
+  hookVolume: z.number().min(0).max(1).default(1),
+  /** Global hooks edited as JSON in Settings. */
+  hooks: hooksDocumentSchema.default(emptyHooksDocument)
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -74,7 +79,9 @@ export const defaultSettings: Settings = {
   customShells: [],
   overlayShortcut: defaultOverlayShortcut,
   overlayOpacity: defaultOverlayOpacity,
-  notifyMuted: false
+  notifyMuted: false,
+  hookVolume: 1,
+  hooks: emptyHooksDocument
 }
 
 /**
@@ -90,7 +97,9 @@ export const settingsPatchSchema = settingsSchema
     customShells: z.array(customShellSchema).max(10),
     overlayShortcut: overlayShortcutSchema,
     overlayOpacity: overlayOpacitySchema,
-    notifyMuted: z.boolean()
+    notifyMuted: z.boolean(),
+    hookVolume: z.number().min(0).max(1),
+    hooks: hooksDocumentSchema
   })
   .partial()
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

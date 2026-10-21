@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { healthPathSchema } from './health'
+import { hookEventMapSchema } from './hooks'
 import { notifyConfigSchema, scriptNotifySchema } from './notify'
 import { outputStatusConfigSchema } from './output-status'
 
@@ -134,6 +135,11 @@ const configCommandSchema = z.union([
 /** Schema of the optional `.devhub.yaml` file committed in a managed project. */
 export const projectConfigSchema = z
   .object({
+    /**
+     * Project-wide hooks, merged with the global Settings document and each script's `notify`.
+     * Same shape as the `hooks` object inside the settings JSON.
+     */
+    hooks: hookEventMapSchema.optional(),
     scripts: z
       .record(
         z.string().trim().min(1).max(60),

@@ -20,6 +20,7 @@ import type { RunHealth } from './health'
 import type { RunHistoryOutput, RunRecord } from './history'
 import type { RunOutputStatus } from './output-status'
 import type { RemoteConfigPatch, RemoteState } from './remote'
+import type { HookEventName } from './hooks'
 import type { Settings, SettingsPatch } from './settings'
 import type { WorkspacePatch, WorkspaceView } from './workspaces'
 
@@ -108,6 +109,11 @@ export interface DevhubApi {
   getSettings(): Promise<Settings>
   /** Validates and applies a partial update; takes effect immediately. */
   updateSettings(patch: SettingsPatch): Promise<Settings>
+  /**
+   * Runs the saved global hooks for one event. Match and the interval are ignored,
+   * so a button in Settings can try the actions. Project-file hooks are not included.
+   */
+  testHook(event: HookEventName): Promise<{ fired: number }>
   listGroups(): Promise<Group[]>
   /** Creates a group (input without id) or replaces an existing one. */
   saveGroup(input: GroupInput): Promise<Group>
@@ -178,6 +184,7 @@ export const devhubApiMethods = [
   'removeRun',
   'getSettings',
   'updateSettings',
+  'testHook',
   'listGroups',
   'saveGroup',
   'deleteGroup',

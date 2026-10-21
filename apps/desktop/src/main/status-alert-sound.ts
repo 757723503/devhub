@@ -12,6 +12,49 @@ export function toneWav(frequencies: readonly number[]): Buffer {
   return encodeWav(parts.reduce((all, part) => concatSamples(all, part)))
 }
 
+/**
+ * Scales 16-bit PCM samples. Other encodings are returned unchanged.
+ * A gain of 1 returns the original buffer.
+ */
+export function scaleWav(wav: Buffer, volume: number): Buffer {
+  if (volume >= 0.999) return wav
+  const gain = Math.max(0, Math.min(1, volume))
+  const format = pcmFormat(wav)
+  if (!format) return wav
+  const out = Buffer.from(wav)
+  for (let offset = format.dataStart; offset + 1 < format.dataEnd; offset += 2) {
+    const sample = out.readInt16LE(offset)
+    const scaled = Math.max(-32768, Math.min(32767, Math.round(sample * gain)))
+    out.writeInt16LE(scaled, offset)
+  }
+  return out
+}
+
+function pcmFormat(wav: Buffer): { dataStart: number; dataEnd: number } | null {
+  if (wav.length < 44 || wav.toString('ascii', 0, 4) !== 'RIFF') return null
+  let audioFormat = 0
+  let bits = 0
+  let offset = 12
+  let dataStart = 0
+  let dataEnd = 0
+  while (offset + 8 <= wav.length) {
+    const id = wav.toString('ascii', offset, offset + 4)
+    const size = wav.readUInt32LE(offset + 4)
+    const start = offset + 8
+    if (id === 'fmt ' && start + 16 <= wav.length) {
+      audioFormat = wav.readUInt16LE(start)
+      bits = wav.readUInt16LE(start + 14)
+    }
+    if (id === 'data') {
+      dataStart = start
+      dataEnd = Math.min(wav.length, start + size)
+    }
+    offset = start + size + (size % 2)
+  }
+  if (audioFormat !== 1 || bits !== 16 || dataEnd <= dataStart) return null
+  return { dataStart, dataEnd }
+}
+
 /** A relative wav must stay inside the project. Absolute paths are used as given. */
 export function resolveNotifyWav(sound: string, projectPath: string): string | null {
   if (!sound.toLowerCase().endsWith('.wav')) return null
