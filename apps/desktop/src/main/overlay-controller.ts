@@ -5,6 +5,7 @@ import {
   defaultOverlayShortcut,
   shellChannel,
   type DevhubEvent,
+  type OverlayMoveGesture,
   type OverlayResizeGesture,
   type Settings
 } from '@devhub/shared'
@@ -13,7 +14,9 @@ import {
   clampOverlayPosition,
   clampOverlayWidth,
   defaultOverlayPosition,
+  finishOverlayMove,
   fitOverlayHeight,
+  moveOverlayFrame,
   overlayMargin,
   overlayMaxWidth,
   overlayMinHeight,
@@ -53,6 +56,8 @@ export interface OverlayController {
   /** Reported by the renderer. The window shrinks or grows to match, under `maxHeight`. */
   setContentHeight(height: number): void
   resize(gesture: OverlayResizeGesture): void
+  /** Drag the panel from a blank area. Snaps when the gesture ends. */
+  move(gesture: OverlayMoveGesture): void
   isVisible(): boolean
   shortcutLabel(): string
   /** Visibility or the shortcut label changed; the tray menu rebuilds from this. */
@@ -74,6 +79,8 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
   let contentHeight = overlayMinHeight
   let resizing = false
   let resizeStart: Rect | null = null
+  let dragging = false
+  let dragStart: Rect | null = null
   let snap: OverlaySnapAnchor | undefined
   /** setBounds that moves the window. The matching `moved` must not snap again. */
   let ignoreMoves = 0
@@ -146,7 +153,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     Math.abs(current.height - frame.height) <= 1
 
   const applyFit = (target: BrowserWindow): void => {
-    if (target.isDestroyed() || resizing) return
+    if (target.isDestroyed() || resizing || dragging) return
     const current = target.getBounds()
     const area = workAreaFor(current)
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
@@ -193,7 +200,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
         ignoreMoves -= 1
         return
       }
-      if (resizing || created.isDestroyed()) return
+      if (resizing || dragging || created.isDestroyed()) return
       const current = created.getBounds()
       const area = workAreaFor(current)
       const snapped = snapOverlayPosition(current, current, area)
@@ -304,7 +311,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     setContentHeight(height) {
       contentHeight = height
       // A manual resize is the source of truth until the pointer goes up.
-      if (resizing) return
+      if (resizing || dragging) return
       if (window && !window.isDestroyed()) applyFit(window)
     },
     resize(gesture) {
@@ -332,6 +339,27 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
       resizeStart = null
       save(placement())
       applyFit(target)
+    },
+    move(gesture) {
+      const target = window
+      if (!target || target.isDestroyed()) return
+      if (gesture.phase === 'start') {
+        dragging = true
+        dragStart = target.getBounds()
+        return
+      }
+      if (!dragStart) return
+      const area = workAreaFor(dragStart)
+      if (gesture.phase !== 'end') {
+        commitBounds(target, moveOverlayFrame(dragStart, gesture.dx, gesture.dy, area))
+        return
+      }
+      const placed = finishOverlayMove(dragStart, gesture.dx, gesture.dy, area)
+      snap = placed.snap
+      commitBounds(target, placed.frame)
+      dragging = false
+      dragStart = null
+      save(placement())
     },
     setPinned(value) {
       pinned = value

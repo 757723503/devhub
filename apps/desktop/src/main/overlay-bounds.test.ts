@@ -3,7 +3,9 @@ import {
   clampOverlayFrame,
   clampOverlayPosition,
   defaultOverlayPosition,
+  finishOverlayMove,
   fitOverlayHeight,
+  moveOverlayFrame,
   parseOverlayPlacement,
   positionForSnap,
   resizeOverlayFrame,
@@ -130,5 +132,20 @@ describe('overlay placement', () => {
         snap: { x: 'right', y: 'top' }
       })?.snap
     ).toEqual({ x: 'right', y: 'top' })
+  })
+
+  it('moves from the drag start and snaps only when the gesture ends near an edge', () => {
+    const start = { x: 100, y: 40, width: 280, height: 200 }
+    expect(moveOverlayFrame(start, 30, -10, workArea)).toEqual({
+      x: 130,
+      y: 30,
+      width: 280,
+      height: 200
+    })
+    const area = { x: 0, y: 0, width: 800, height: 600 }
+    const ended = finishOverlayMove({ x: 8, y: 200, width: 280, height: 120 }, -4, 20, area)
+    expect(ended.frame).toEqual({ x: 0, y: 220, width: 280, height: 120 })
+    expect(ended.snap).toEqual({ x: 'left', y: null })
+    expect(finishOverlayMove(start, 40, 20, workArea).snap).toBeUndefined()
   })
 })

@@ -6,6 +6,7 @@ import {
   devhubEventChannel,
   ipcChannel,
   overlayFocusSchema,
+  overlayMoveSchema,
   overlayResizeSchema,
   shellChannel,
   type DevhubApi,
@@ -119,6 +120,13 @@ export function registerOverlayIpc(overlay: OverlayController): void {
       const parsed = overlayResizeSchema.safeParse(gesture)
       if (!parsed.success) throw new DevhubError('INVALID_INPUT', '悬浮面板尺寸无效')
       overlay.resize(parsed.data)
+    })
+  )
+  ipcMain.handle(shellChannel.moveOverlay, (_event, gesture: unknown) =>
+    toIpcResult(shellChannel.moveOverlay, async () => {
+      const parsed = overlayMoveSchema.safeParse(gesture)
+      if (!parsed.success) throw new DevhubError('INVALID_INPUT', '悬浮面板位置无效')
+      overlay.move(parsed.data)
     })
   )
 }

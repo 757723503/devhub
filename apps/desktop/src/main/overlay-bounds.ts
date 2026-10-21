@@ -196,6 +196,32 @@ export function positionForSnap(
   return { x, y }
 }
 
+/** Live position while dragging the panel. `dx`/`dy` are screen pixels from the threshold. */
+export function moveOverlayFrame(start: Rect, dx: number, dy: number, workArea: Rect): Rect {
+  const position = clampOverlayPosition(
+    { x: Math.round(start.x + dx), y: Math.round(start.y + dy) },
+    start,
+    workArea
+  )
+  return { ...start, x: position.x, y: position.y }
+}
+
+/** Where a drag ends: clamp into the work area, then stick to a nearby edge. */
+export function finishOverlayMove(
+  start: Rect,
+  dx: number,
+  dy: number,
+  workArea: Rect
+): { frame: Rect; snap: OverlaySnapAnchor | undefined } {
+  const moved = moveOverlayFrame(start, dx, dy, workArea)
+  const snapped = snapOverlayPosition(moved, moved, workArea)
+  const position = clampOverlayPosition(snapped, moved, workArea)
+  return {
+    frame: { ...moved, x: position.x, y: position.y },
+    snap: snapped.snap.x || snapped.snap.y ? snapped.snap : undefined
+  }
+}
+
 /** Top-right of the work area, inset by `overlayMargin`. */
 export function defaultOverlayPosition(workArea: Rect, size: Size): { x: number; y: number } {
   return clampOverlayPosition(

@@ -252,6 +252,11 @@ export interface ShellApi {
   setOverlayContentHeight(height: number): Promise<void>
   /** Drag an edge of the floating panel. `dx`/`dy` are screen pixels since pointer-down. */
   resizeOverlay(gesture: OverlayResizeGesture): Promise<void>
+  /**
+   * Drag the floating panel from a blank area. `dx`/`dy` are screen pixels since the
+   * gesture passed the click threshold. Clicks stay in the renderer; this only moves.
+   */
+  moveOverlay(gesture: OverlayMoveGesture): Promise<void>
 }
 
 export interface OverlayWindowState {
@@ -273,6 +278,13 @@ export const overlayResizeSchema = z.object({
 })
 export type OverlayResizeEdge = z.infer<typeof overlayResizeSchema>['edge']
 export type OverlayResizeGesture = z.infer<typeof overlayResizeSchema>
+
+export const overlayMoveSchema = z.object({
+  dx: z.number().finite().min(-8000).max(8000),
+  dy: z.number().finite().min(-8000).max(8000),
+  phase: z.enum(['start', 'move', 'end'])
+})
+export type OverlayMoveGesture = z.infer<typeof overlayMoveSchema>
 
 export interface WindowState {
   /** Host OS (`win32` / `linux` / `darwin`): macOS keeps its own traffic-light buttons. */
@@ -321,5 +333,6 @@ export const shellChannel = {
   /** Pushed to the main window when the panel asks to open a run. */
   focusRunTarget: 'shell:focusRunTarget',
   setOverlayContentHeight: 'shell:setOverlayContentHeight',
-  resizeOverlay: 'shell:resizeOverlay'
+  resizeOverlay: 'shell:resizeOverlay',
+  moveOverlay: 'shell:moveOverlay'
 } as const

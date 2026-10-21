@@ -31,16 +31,19 @@ const watchJs = [
   '}, 200)'
 ].join('\n')
 
-async function overlayBounds(
-  app: ElectronApplication
-): Promise<{ width: number; height: number } | null> {
+async function overlayBounds(app: ElectronApplication): Promise<{
+  x: number
+  y: number
+  width: number
+  height: number
+} | null> {
   return app.evaluate(({ BrowserWindow }) => {
     const panel = BrowserWindow.getAllWindows().find((window) =>
       window.webContents.getURL().includes('view=overlay')
     )
     if (!panel) return null
     const bounds = panel.getBounds()
-    return { width: bounds.width, height: bounds.height }
+    return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
   })
 }
 
@@ -112,21 +115,45 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   })
   await overlay.screenshot({ path: testInfo.outputPath('overlay.png') })
 
-  await expect(overlay.getByRole('button', { name: '关闭状态提示音' })).toBeVisible()
+  await overlay.getByRole('button', { name: '关闭状态提示音' }).click()
+  await expect(overlay.getByRole('button', { name: '状态提示音已关闭，点击打开' })).toBeVisible()
   const regionOf = (locator: Locator): Promise<string> =>
     locator.evaluate((el) => {
       const read = (node: Element | null): string => {
         if (!node) return ''
         const value = getComputedStyle(node).getPropertyValue('-webkit-app-region').trim()
-        if (value) return value
+        if (value === 'drag') return 'drag'
         return read(node.parentElement)
       }
       return read(el)
     })
-  await expect.poll(() => regionOf(overlay.getByRole('heading', { name: '长期运行' }))).toBe('drag')
+  // A drag ancestor would swallow these clicks on Windows. Neither the row nor the buttons may sit in one.
+  await expect.poll(() => regionOf(overlay.getByRole('heading', { name: '长期运行' }))).toBe('')
+  await expect.poll(() => regionOf(overlay.getByRole('button', { name: '停止 全量dev' }))).toBe('')
+  await expect.poll(() => regionOf(overlay.locator('pre'))).toBe('')
+
+  const beforeMove = await overlayBounds(app)
+  const heading = overlay.getByRole('heading', { name: '长期运行' })
+  const headingBox = await heading.boundingBox()
+  if (!headingBox || !beforeMove) throw new Error('overlay heading is missing')
+  await overlay.mouse.move(
+    headingBox.x + headingBox.width / 2,
+    headingBox.y + headingBox.height / 2
+  )
+  await overlay.mouse.down()
+  await overlay.mouse.move(
+    headingBox.x + headingBox.width / 2 - 56,
+    headingBox.y + headingBox.height / 2 + 40,
+    { steps: 8 }
+  )
+  await overlay.mouse.up()
   await expect
-    .poll(() => regionOf(overlay.getByRole('button', { name: '停止 全量dev' })))
-    .toBe('no-drag')
+    .poll(async () => {
+      const next = await overlayBounds(app)
+      if (!next) return 0
+      return Math.abs(next.x - beforeMove.x) + Math.abs(next.y - beforeMove.y)
+    })
+    .toBeGreaterThan(20)
   await expect
     .poll(() => overlay.locator('pre').evaluate((el) => getComputedStyle(el).userSelect))
     .toBe('text')

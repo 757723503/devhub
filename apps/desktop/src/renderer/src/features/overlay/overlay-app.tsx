@@ -17,6 +17,7 @@ import { overlayFitSuspended, onOverlayFitResumed } from './overlay-fit-pause'
 import { OverlayOpacityButton } from './overlay-opacity'
 import { OverlayResizeHandles } from './overlay-resize-handles'
 import { OverlayRuns } from './overlay-runs'
+import { useOverlayWindowDrag } from './overlay-window-drag'
 
 /** Room under the header so the opacity slider is not clipped by a short window. */
 const opacityRoom = 96
@@ -80,6 +81,7 @@ export function OverlayApp(): React.JSX.Element {
   const cardRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   useReportOverlayHeight(cardRef, contentRef, opacityOpen ? opacityRoom : 0)
+  useOverlayWindowDrag(cardRef)
   const selected =
     projects.data?.find((project) => project.id === projectId) ?? projects.data?.[0] ?? null
 
@@ -90,11 +92,11 @@ export function OverlayApp(): React.JSX.Element {
   return (
     <div
       ref={cardRef}
-      className="app-drag relative flex h-dvh flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
+      className="relative flex h-dvh flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
       style={{ opacity: panel.opacity }}
     >
       <div ref={contentRef}>
-        <header className="app-drag flex items-center gap-1 border-b border-foreground/10 px-2 py-1.5">
+        <header className="flex items-center gap-1 border-b border-foreground/10 px-2 py-1.5">
           <select
             className="app-no-drag h-7 min-w-0 flex-1 truncate rounded-md border bg-background/70 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="当前项目"

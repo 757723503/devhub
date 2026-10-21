@@ -160,23 +160,13 @@
 }
 
 /* The floating panel is a transparent window; only the card paints a background.
-   Blank space drags the window. Controls and the mini terminal opt out. */
+   Blank space moves the window in script (Windows drops clicks inside an app-region
+   drag ancestor). Text can be selected only in the mini terminal. */
 html[data-overlay],
 html[data-overlay] body {
   background: transparent;
   user-select: none;
   cursor: default;
-}
-html[data-overlay] button,
-html[data-overlay] input,
-html[data-overlay] select,
-html[data-overlay] textarea,
-html[data-overlay] a,
-html[data-overlay] pre,
-html[data-overlay] [data-no-drag],
-html[data-overlay] [data-overlay-resize],
-html[data-overlay] [role='slider'] {
-  -webkit-app-region: no-drag;
 }
 html[data-overlay] pre {
   user-select: text;
