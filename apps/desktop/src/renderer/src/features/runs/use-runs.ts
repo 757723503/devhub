@@ -8,6 +8,8 @@ import {
 } from '@tanstack/react-query'
 import { describePortConflicts, type PortConflict, type Run } from '@devhub/shared'
 import { api, events } from '@renderer/api'
+import { applyFavoritesEvent } from '@renderer/features/scripts/use-favorites'
+import { applyOutputStatusEvent } from './use-output-status'
 import { applyHealthEvent } from './use-run-health'
 import { refreshHistory } from './use-run-history'
 
@@ -45,6 +47,10 @@ export function useRunEventsSync(): void {
           )
         } else if (event.type === 'run-health') {
           applyHealthEvent(queryClient, event)
+        } else if (event.type === 'run-output-status') {
+          applyOutputStatusEvent(queryClient, event)
+        } else if (event.type === 'favorites-updated') {
+          applyFavoritesEvent(queryClient, event)
         }
       }),
     [queryClient]

@@ -1,6 +1,8 @@
 import type { Run } from './domain'
+import type { ScriptFavorite } from './favorites'
 import type { GroupRunState } from './groups'
 import type { RunHealth } from './health'
+import type { RunOutputStatus } from './output-status'
 import type { Settings } from './settings'
 
 /**
@@ -17,6 +19,9 @@ export type DevhubEvent =
   | { type: 'group-updated'; state: GroupRunState }
   /** `health` is null once the run is no longer checked (stopping, exited, removed). */
   | { type: 'run-health'; runId: string; health: RunHealth | null }
+  /** `status` is null once the run is removed. Output rules only; port health stays on `run-health`. */
+  | { type: 'run-output-status'; runId: string; status: RunOutputStatus | null }
+  | { type: 'favorites-updated'; favorites: ScriptFavorite[] }
   | { type: 'settings-updated'; settings: Settings }
   /** Projects or workspaces changed in the core (a rescan, a workspace edit); refetch both. */
   | { type: 'projects-updated' }

@@ -159,6 +159,12 @@
   -webkit-app-region: no-drag;
 }
 
+/* The floating panel is a transparent window; only the card paints a background. */
+html[data-overlay],
+html[data-overlay] body {
+  background: transparent;
+}
+
 /* xterm paints its scroll viewport black by default, which shows around the padded grid.
    The terminal host already carries the theme background, so let it show through. */
 [data-terminal-run] .xterm .xterm-viewport {

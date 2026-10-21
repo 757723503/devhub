@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { healthPathSchema } from './health'
+import { outputStatusConfigSchema } from './output-status'
 
 /** Where a script was discovered. Each source maps to one detector in the desktop main process. */
 export const scriptSourceSchema = z.enum(['npm', 'maven', 'gradle', 'custom'])
@@ -17,7 +18,19 @@ export const scriptSchema = z.object({
   /** Ports the script is expected to listen on (inferred), checked before it starts. */
   ports: z.array(z.number().int().min(1).max(65535)).optional(),
   /** HTTP path checked on the first port to decide readiness; otherwise the ports are. */
-  healthPath: healthPathSchema.optional()
+  healthPath: healthPathSchema.optional(),
+  /** Ask before running. Set from `.devhub.yaml` `confirm: true` (for example a cloud deploy). */
+  confirm: z.boolean().optional(),
+  /** Starred in the project file. A per-machine choice in favorites.json overrides this. */
+  favorite: z.boolean().optional(),
+  /** Patterns matched against live output. Present only when the script declared `status`. */
+  outputStatus: z
+    .object({
+      busy: z.string().min(1).max(4000).optional(),
+      ready: z.string().min(1).max(4000).optional(),
+      error: z.string().min(1).max(4000).optional()
+    })
+    .optional()
 })
 export type Script = z.infer<typeof scriptSchema>
 
@@ -126,7 +139,16 @@ export const projectConfigSchema = z
             port: z.number().int().min(1).max(65535).optional(),
             ports: z.array(z.number().int().min(1).max(65535)).optional(),
             /** HTTP path that must answer 2xx for the script to count as ready. */
-            health: healthPathSchema.optional()
+            health: healthPathSchema.optional(),
+            /** Show a confirmation before this command runs. */
+            confirm: z.boolean().optional(),
+            /** Start this script already starred. The user can still unpin it locally. */
+            favorite: z.boolean().optional(),
+            /**
+             * Output lines that move a long-running script between building, ready and error.
+             * A preset name (`webpack`, `tstl`), a list of them, or `{ busy, ready, error }` regexes.
+             */
+            status: outputStatusConfigSchema.optional()
           })
           .strict()
       )

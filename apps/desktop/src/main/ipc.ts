@@ -1,13 +1,16 @@
+import { z } from 'zod'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import {
   DevhubError,
   devhubApiMethods,
   devhubEventChannel,
   ipcChannel,
+  overlayFocusSchema,
   shellChannel,
   type DevhubApi,
   type DevhubEvents
 } from '@devhub/shared'
+import type { OverlayController } from './overlay-controller'
 import { toIpcResult } from './core/api-result'
 import { isDirectory } from './core/fs/is-directory'
 import { parseExternalUrl } from './core/shell/external-url'
@@ -71,6 +74,36 @@ export function registerIpcHandlers(core: DevhubApi & DevhubEvents): void {
       // Resolves to an error message rather than rejecting.
       const failure = await shell.openPath(folder)
       if (failure) throw new DevhubError('OPEN_FOLDER_FAILED', `无法打开目录：${failure}`)
+    })
+  )
+}
+
+/** Panel window controls. Not part of DevhubApi: a remote client has no desktop window. */
+export function registerOverlayIpc(overlay: OverlayController): void {
+  ipcMain.handle(shellChannel.getOverlayState, () =>
+    toIpcResult(shellChannel.getOverlayState, async () => overlay.getState())
+  )
+  ipcMain.handle(shellChannel.setOverlayPinned, (_event, pinned: unknown) =>
+    toIpcResult(shellChannel.setOverlayPinned, async () => {
+      const parsed = z.boolean().safeParse(pinned)
+      if (!parsed.success) throw new DevhubError('INVALID_INPUT', '置顶参数无效')
+      overlay.setPinned(parsed.data)
+    })
+  )
+  ipcMain.handle(shellChannel.hideOverlay, () =>
+    toIpcResult(shellChannel.hideOverlay, async () => overlay.hide())
+  )
+  ipcMain.handle(shellChannel.toggleOverlay, () =>
+    toIpcResult(shellChannel.toggleOverlay, async () => overlay.toggle())
+  )
+  ipcMain.handle(shellChannel.showMainWindow, () =>
+    toIpcResult(shellChannel.showMainWindow, async () => overlay.showMain())
+  )
+  ipcMain.handle(shellChannel.focusRun, (_event, projectId: unknown, runId: unknown) =>
+    toIpcResult(shellChannel.focusRun, async () => {
+      const parsed = overlayFocusSchema.safeParse({ projectId, runId })
+      if (!parsed.success) throw new DevhubError('INVALID_INPUT', '无法打开这次运行')
+      overlay.focusRun(parsed.data.projectId, parsed.data.runId)
     })
   )
 }

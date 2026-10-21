@@ -8,6 +8,8 @@ import {
   type DevhubEvent,
   type DevhubEvents,
   type IpcResult,
+  type OverlayFocusTarget,
+  type OverlayWindowState,
   type ShellApi,
   type UpdateStatus,
   type WindowState
@@ -68,6 +70,29 @@ const shell: ShellApi = {
   },
   closeWindow: async () => {
     await invoke(shellChannel.closeWindow)
+  },
+  getOverlayState: () => invoke(shellChannel.getOverlayState) as Promise<OverlayWindowState>,
+  setOverlayPinned: async (pinned) => {
+    await invoke(shellChannel.setOverlayPinned, pinned)
+  },
+  hideOverlay: async () => {
+    await invoke(shellChannel.hideOverlay)
+  },
+  toggleOverlay: async () => {
+    await invoke(shellChannel.toggleOverlay)
+  },
+  showMainWindow: async () => {
+    await invoke(shellChannel.showMainWindow)
+  },
+  focusRun: async (projectId, runId) => {
+    await invoke(shellChannel.focusRun, projectId, runId)
+  },
+  onFocusRun(listener) {
+    const handler = (_event: IpcRendererEvent, target: OverlayFocusTarget): void => listener(target)
+    ipcRenderer.on(shellChannel.focusRunTarget, handler)
+    return () => {
+      ipcRenderer.removeListener(shellChannel.focusRunTarget, handler)
+    }
   }
 }
 

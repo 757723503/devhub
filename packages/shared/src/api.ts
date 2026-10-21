@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type {
   EditorId,
   EditorInfo,
@@ -12,9 +13,11 @@ import type {
   SystemTerminalInfo
 } from './domain'
 import type { RunOutputSnapshot } from './events'
+import type { ScriptFavorite } from './favorites'
 import type { Group, GroupInput, GroupRunState } from './groups'
 import type { RunHealth } from './health'
 import type { RunHistoryOutput, RunRecord } from './history'
+import type { RunOutputStatus } from './output-status'
 import type { RemoteConfigPatch, RemoteState } from './remote'
 import type { Settings, SettingsPatch } from './settings'
 import type { WorkspacePatch, WorkspaceView } from './workspaces'
@@ -73,6 +76,19 @@ export interface DevhubApi {
   ): Promise<RunHistoryOutput | null>
   /** Readiness of every checked run; later changes arrive as `run-health` events. */
   listRunHealth(): Promise<RunHealth[]>
+  /**
+   * Output-matched status of runs whose script declared `status` rules.
+   * Later changes arrive as `run-output-status` events.
+   */
+  listOutputStatus(): Promise<RunOutputStatus[]>
+  /** Per-machine stars. A script with no entry uses its `.devhub.yaml` `favorite` flag. */
+  listScriptFavorites(): Promise<ScriptFavorite[]>
+  /** Stores an explicit star or unstar for one script and returns the full list. */
+  setScriptFavorite(
+    projectId: string,
+    scriptId: string,
+    favorite: boolean
+  ): Promise<ScriptFavorite[]>
   /** Recent output; combine with `run-output` events through `OutputCursor`. */
   getRunOutput(runId: string): Promise<RunOutputSnapshot>
   /** Sends terminal input (keystrokes) to an active run. */
@@ -143,6 +159,9 @@ export const devhubApiMethods = [
   'clearRunHistory',
   'getRunHistoryOutput',
   'listRunHealth',
+  'listOutputStatus',
+  'listScriptFavorites',
+  'setScriptFavorite',
   'getRunOutput',
   'writeRunInput',
   'resizeRun',
@@ -206,7 +225,30 @@ export interface ShellApi {
   toggleMaximizeWindow(): Promise<void>
   /** Same as the system close button: hides to the tray or quits, per settings. */
   closeWindow(): Promise<void>
+  /** Whether the floating panel stays above other windows. */
+  getOverlayState(): Promise<OverlayWindowState>
+  setOverlayPinned(pinned: boolean): Promise<void>
+  /** Hides the floating panel without quitting. */
+  hideOverlay(): Promise<void>
+  /** Shows the floating panel, or hides it when it is already visible. Same as the tray item. */
+  toggleOverlay(): Promise<void>
+  /** Shows and focuses the main window. */
+  showMainWindow(): Promise<void>
+  /** Shows the main window and asks it to open this run's terminal tab. */
+  focusRun(projectId: string, runId: string): Promise<void>
+  /** Fired in the main window when the panel asks to show a run. */
+  onFocusRun(listener: (target: OverlayFocusTarget) => void): () => void
 }
+
+export interface OverlayWindowState {
+  alwaysOnTop: boolean
+}
+
+export const overlayFocusSchema = z.object({
+  projectId: z.string().trim().min(1).max(200),
+  runId: z.string().trim().min(1).max(200)
+})
+export type OverlayFocusTarget = z.infer<typeof overlayFocusSchema>
 
 export interface WindowState {
   /** Host OS (`win32` / `linux` / `darwin`): macOS keeps its own traffic-light buttons. */
@@ -245,5 +287,13 @@ export const shellChannel = {
   windowState: 'shell:windowState',
   minimizeWindow: 'shell:minimizeWindow',
   toggleMaximizeWindow: 'shell:toggleMaximizeWindow',
-  closeWindow: 'shell:closeWindow'
+  closeWindow: 'shell:closeWindow',
+  getOverlayState: 'shell:getOverlayState',
+  setOverlayPinned: 'shell:setOverlayPinned',
+  hideOverlay: 'shell:hideOverlay',
+  toggleOverlay: 'shell:toggleOverlay',
+  showMainWindow: 'shell:showMainWindow',
+  focusRun: 'shell:focusRun',
+  /** Pushed to the main window when the panel asks to open a run. */
+  focusRunTarget: 'shell:focusRunTarget'
 } as const

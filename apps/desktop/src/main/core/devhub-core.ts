@@ -32,6 +32,12 @@ import {
 import { createGroupRunner } from './groups/group-runner'
 import { createGroupService, emptyGroupsFile, groupsFileSchema } from './groups/group-service'
 import { createEventBus } from './events/event-bus'
+import {
+  createFavoriteService,
+  emptyFavoritesFile,
+  favoritesFileSchema
+} from './favorites/favorite-service'
+import { createOutputStatusMonitor } from './output-status/output-status-monitor'
 import { createIdentityReader } from './process/process-identity'
 import { createProcessKiller } from './process/process-killer'
 import { nodePtySpawner } from './process/pty'
@@ -239,6 +245,27 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     .rescanAll()
     .catch((error: unknown) => console.error('[core] workspace rescan failed', error))
 
+  const favorites = createFavoriteService({
+    store: createJsonStore({
+      filePath: join(env.dataDir, 'favorites.json'),
+      schema: favoritesFileSchema,
+      fallback: emptyFavoritesFile
+    }),
+    emit: (event) => events.emit(event)
+  })
+
+  const outputStatus = createOutputStatusMonitor({
+    subscribe: (listener) => events.subscribe(listener),
+    resolveRules: async (run) => {
+      try {
+        return (await scripts.find(run.projectId, run.scriptId)).script.outputStatus ?? null
+      } catch {
+        return null
+      }
+    },
+    emit: (event) => events.emit(event)
+  })
+
   const health = createHealthMonitor({
     subscribe: (listener) => events.subscribe(listener),
     resolveTarget: async (run) =>
@@ -278,6 +305,10 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     clearRunHistory: (projectId, scriptId) => history.clear(projectId, scriptId),
     getRunHistoryOutput: (projectId, scriptId, runId) => history.output(projectId, scriptId, runId),
     listRunHealth: async () => health.list(),
+    listOutputStatus: async () => outputStatus.list(),
+    listScriptFavorites: () => favorites.list(),
+    setScriptFavorite: (projectId, scriptId, favorite) =>
+      favorites.set(projectId, scriptId, favorite),
     getRunOutput: async (runId) => runs.output(runId),
     writeRunInput: async (runId, data) => runs.writeInput(runId, data),
     resizeRun: async (runId, cols, rows) => runs.resize(runId, cols, rows),
@@ -329,6 +360,7 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
       await remote.dispose()
       // Cancel sequences first so no step starts while the runs are being stopped.
       groupRunner.dispose()
+      outputStatus.dispose()
       health.dispose()
       await runs.dispose()
       // The runs just stopped are recorded as they exit; let those writes finish.

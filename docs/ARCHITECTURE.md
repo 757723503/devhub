@@ -164,7 +164,7 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 ## 事件推送（见 ADR 0004）
 
 - `DevhubEvents.subscribe` 独立于 `DevhubApi`：请求-响应走自动映射的 IPC，推送走 `devhubEventChannel`（主进程 `webContents.send` → preload → `@renderer/api` 的 `events`）。远程端改用 SSE（`GET /api/v1/events`，ADR 0022）。
-- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
+- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`run-output-status`（按输出匹配的构建状态，ADR 0031）、`favorites-updated`、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
 - 设置分两处（ADR 0007）：影响 core 行为的存 `settings.json`；纯显示偏好（主题、风格、终端字号等）存 renderer 的 localStorage（`lib/appearance.ts`、`terminal-prefs.ts`）。设计风格（ADR 0019）是 `<html data-style>` 下对语义 CSS 变量的覆盖（`assets/styles/`），组件只用语义 token（`bg-primary`，运行状态用 `success` / `warning` / `info`），不写死颜色，新增风格不改组件。renderer 用事件直接更新 TanStack Query 缓存（`useRunEventsSync`，在 App 挂载一次）。
 - 终端：先订阅再取 `getRunOutput` 快照，用 shared 的 `OutputCursor` 去重拼接；core 中输出按 16 ms 合并后推送。
 - renderer 的 `terminal-sessions.ts` 为每个运行保留一个 xterm 实例（切换标签只移动 DOM 节点，关闭标签时释放）；只有可见终端使用 WebGL。快捷键在 `terminal-keys.ts`，外观偏好（主题、字号、渲染方式）在 `terminal-prefs.ts`。
@@ -185,3 +185,8 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 - 来自 renderer 的参数一律视为不可信，在 core 中用 zod 校验。
 - 交给系统打开的 URL（ShellApi `openExternal`、`setWindowOpenHandler`）统一经 `core/shell/external-url.ts` 校验，只允许 http / https：链接可能来自不可信的进程输出。
 - 远程 API 默认关闭；开启时必须 Token 鉴权（ADR 0022）。每个 `DevhubApi` 方法在 shared 的 `remoteAccess` 中标注 `read` / `control` / `terminal` / `local`，新增方法不归类则编译失败；`local` 永不远程开放，`terminal` 需单独开关。Token 存 `remote.json`，不进 `settings.json`（设置会推送给所有客户端）。
+
+## 悬浮面板与输出状态（ADR 0031）
+
+- 悬浮面板是主进程里的第二个 BrowserWindow（`overlay-controller.ts` / `overlay-window.ts`），不进入 `core/`。透明、无边框、不进任务栏、宽度 280；位置存在 `overlay.json`，显示时夹在工作区内。托盘项、设置里的全局快捷键（默认 Ctrl+Alt+D）和 `toggleOverlay` 开关它。置顶、隐藏、打开主窗口、聚焦某次运行走 ShellApi。renderer 用 `?view=overlay` 画同一套数据。
+- `.devhub.yaml` 可为脚本声明 `status`（预设 `webpack` / `tstl`，或 `busy` / `ready` / `error` 正则）、`confirm`、`favorite`。`output-status-monitor` 只听事件总线，在去掉 ANSI 的最近输出里取最后一次匹配，用 `run-output-status` 推送；不改 RunManager。本机收藏在 `favorites.json`，覆盖文件里的 `favorite`，变更走 `favorites-updated`。

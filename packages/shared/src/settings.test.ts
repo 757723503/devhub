@@ -38,6 +38,21 @@ describe('custom shells in settings', () => {
     expect(settingsPatchSchema.parse({ stopGraceSeconds: 3 })).toEqual({ stopGraceSeconds: 3 })
   })
 
+  it('loads the default overlay shortcut into settings written before it existed', () => {
+    const { overlayShortcut: _ignored, ...older } = defaultSettings
+    void _ignored
+    expect(settingsSchema.parse(older).overlayShortcut).toBe('CommandOrControl+Alt+D')
+  })
+
+  it('accepts an accelerator and does not inject one into an unrelated patch', () => {
+    expect(settingsPatchSchema.parse({ overlayShortcut: 'Ctrl+Alt+F' })).toEqual({
+      overlayShortcut: 'Ctrl+Alt+F'
+    })
+    expect(settingsPatchSchema.parse({ stopGraceSeconds: 4 })).toEqual({ stopGraceSeconds: 4 })
+    expect(settingsPatchSchema.safeParse({ overlayShortcut: 'ctrl+alt+d' }).success).toBe(false)
+    expect(settingsPatchSchema.safeParse({ overlayShortcut: '' }).success).toBe(false)
+  })
+
   it('accepts a custom shell as the default shell, and rejects malformed ids', () => {
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-wsl' }).success).toBe(true)
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-../x' }).success).toBe(false)

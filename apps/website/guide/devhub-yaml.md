@@ -63,3 +63,22 @@ DevHub 会请求 `http://localhost:<第一个端口><路径>`，返回 2xx 即�
 ## 安全
 
 `.devhub.yaml` 中的命令与 `package.json` 的 scripts 同等对待：只有点击运行才会执行。
+
+## 收藏、确认与输出状态
+
+```yaml
+scripts:
+  dev:
+    command: yarn dev
+    favorite: true
+    status: [webpack, tstl] # 或 status: webpack；也可写 busy/ready/error 正则
+  deploy:
+    command: npm run deploy
+    confirm: true # 点击运行前先确认
+```
+
+`favorite: true` 让脚本默认出现在收藏里（主窗口可只看收藏，悬浮面板的按钮就是收藏）。在界面上加星或取消会记在本机，并覆盖文件里的默认值。
+
+`confirm: true` 时，从脚本列表或悬浮面板点击运行会先询问。批量任务不弹这个确认框。
+
+`status` 给没有固定端口的 watch 用：DevHub 去掉 ANSI 后，用最近输出里**最后一次**匹配决定灯的颜色（构建中 / 就绪 / 出错），所以一次编译失败后再次编译成功，灯会回到就绪。预设 `webpack` 与 `tstl`（tsc --watch / typescript-to-lua）按这些工具的常见输出编写，对不上真实日志时改成自己的正则。悬浮面板用托盘或 Ctrl+Alt+D 打开（可在设置里改快捷键）。

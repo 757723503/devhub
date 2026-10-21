@@ -63,3 +63,22 @@ Mistakes are shown in the script list: YAML syntax errors with their line number
 ## Security
 
 Commands from `.devhub.yaml` are treated like `package.json` scripts: they run only when you click run.
+
+## Favorites, confirmation and output status
+
+```yaml
+scripts:
+  dev:
+    command: yarn dev
+    favorite: true
+    status: [webpack, tstl] # or status: webpack; or busy/ready/error regexes
+  deploy:
+    command: npm run deploy
+    confirm: true # ask before running
+```
+
+`favorite: true` stars the script by default (the main window can filter to stars; the floating panel's buttons are the stars). Starring or unstarring in the app is stored on this machine and overrides the file.
+
+`confirm: true` asks before a click in the script list or the panel. Batch tasks do not show that dialog.
+
+`status` is for watch processes that have no fixed port. After ANSI codes are stripped, the **latest** match in recent output sets the light (building / ready / error), so a failed compile followed by a successful one returns to ready. The `webpack` and `tstl` presets (tsc --watch / typescript-to-lua) follow those tools' usual messages; replace them with your own regexes when the real log differs. Open the panel from the tray or with Ctrl+Alt+D (the shortcut is in Settings).
