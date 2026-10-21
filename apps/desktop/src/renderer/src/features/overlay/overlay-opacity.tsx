@@ -1,9 +1,5 @@
 import { useState } from 'react'
-import { Blend } from 'lucide-react'
 import { overlayOpacityMax, overlayOpacityMin } from '@devhub/shared'
-import { Button } from '@renderer/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
-import { useUpdateSettings } from '@renderer/features/settings/use-settings'
 
 /** Snaps a slider value onto the 1% grid inside the allowed range. */
 function roundOverlayOpacity(value: number): number {
@@ -55,44 +51,5 @@ export function OverlayOpacitySlider({
         {Math.round(shown * 100)}%
       </span>
     </div>
-  )
-}
-
-/** Header control on the panel: drag previews immediately, release writes settings. */
-export function OverlayOpacityButton({
-  opacity,
-  onPreview,
-  onOpenChange
-}: {
-  opacity: number
-  onPreview: (value: number | null) => void
-  onOpenChange?: (open: boolean) => void
-}): React.JSX.Element {
-  const update = useUpdateSettings()
-  return (
-    <Popover onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="app-no-drag"
-          aria-label="不透明度"
-          title="不透明度"
-        >
-          <Blend />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-52 gap-1.5 p-2">
-        <p className="text-xs font-medium">不透明度</p>
-        <OverlayOpacitySlider
-          value={opacity}
-          onPreview={onPreview}
-          onCommit={(value) => {
-            onPreview(value)
-            update.mutate({ overlayOpacity: value }, { onSettled: () => onPreview(null) })
-          }}
-        />
-      </PopoverContent>
-    </Popover>
   )
 }

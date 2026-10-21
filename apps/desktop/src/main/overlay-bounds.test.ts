@@ -5,6 +5,7 @@ import {
   defaultOverlayPosition,
   finishOverlayMove,
   fitOverlayHeight,
+  overlayHeightWithFloor,
   moveOverlayFrame,
   parseOverlayPlacement,
   positionForSnap,
@@ -44,6 +45,14 @@ describe('overlay placement', () => {
     expect(fitOverlayHeight(900, 400, 1080)).toBe(400)
     expect(fitOverlayHeight(120, 400, 1080)).toBe(120)
     expect(fitOverlayHeight(20, undefined, 1080)).toBe(48)
+  })
+
+  it('lifts a short panel for a popover without forgetting a taller ceiling', () => {
+    expect(overlayHeightWithFloor(80, undefined, 1080, 200)).toBe(200)
+    expect(overlayHeightWithFloor(400, 120, 1080, 200)).toBe(200)
+    expect(overlayHeightWithFloor(400, 320, 1080, 200)).toBe(320)
+    expect(overlayHeightWithFloor(400, 320, 1080)).toBe(320)
+    expect(overlayHeightWithFloor(900, undefined, 400, 200)).toBe(376)
   })
 
   it('grows from the east edge and from the west edge without leaving the min width', () => {

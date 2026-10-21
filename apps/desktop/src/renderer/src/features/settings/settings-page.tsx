@@ -288,7 +288,7 @@ function ProcessSection({ settings, save }: SectionProps): React.JSX.Element {
       <SettingRow
         label="不透明度"
         htmlFor="settings-overlay-opacity"
-        description="悬浮面板整体透明度，从 30% 到 100%。面板标题栏里也能改。"
+        description="悬浮面板整体透明度，从 30% 到 100%。"
       >
         <OverlayOpacitySlider
           id="settings-overlay-opacity"

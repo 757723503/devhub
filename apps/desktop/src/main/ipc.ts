@@ -108,11 +108,14 @@ export function registerOverlayIpc(overlay: OverlayController): void {
       overlay.focusRun(parsed.data.projectId, parsed.data.runId)
     })
   )
-  ipcMain.handle(shellChannel.setOverlayContentHeight, (_event, height: unknown) =>
+  ipcMain.handle(shellChannel.setOverlayContentHeight, (_event, height: unknown, floor: unknown) =>
     toIpcResult(shellChannel.setOverlayContentHeight, async () => {
       const parsed = z.number().finite().min(1).max(4000).safeParse(height)
-      if (!parsed.success) throw new DevhubError('INVALID_INPUT', '悬浮面板高度无效')
-      overlay.setContentHeight(parsed.data)
+      const parsedFloor = z.number().finite().min(1).max(4000).optional().safeParse(floor)
+      if (!parsed.success || !parsedFloor.success) {
+        throw new DevhubError('INVALID_INPUT', '悬浮面板高度无效')
+      }
+      overlay.setContentHeight(parsed.data, parsedFloor.data)
     })
   )
   ipcMain.handle(shellChannel.resizeOverlay, (_event, gesture: unknown) =>

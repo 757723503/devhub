@@ -255,8 +255,11 @@ export interface ShellApi {
   focusRun(projectId: string, runId: string): Promise<void>
   /** Fired in the main window when the panel asks to show a run. */
   onFocusRun(listener: (target: OverlayFocusTarget) => void): () => void
-  /** Content height of the floating panel, so the window can hug it. */
-  setOverlayContentHeight(height: number): Promise<void>
+  /**
+   * Content height of the floating panel, so the window can hug it.
+   * `floor` is a temporary minimum while a popover is open; omit it to clear.
+   */
+  setOverlayContentHeight(height: number, floor?: number): Promise<void>
   /** Drag an edge of the floating panel. `dx`/`dy` are screen pixels since pointer-down. */
   resizeOverlay(gesture: OverlayResizeGesture): Promise<void>
   /**

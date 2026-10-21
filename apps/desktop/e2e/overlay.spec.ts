@@ -47,6 +47,18 @@ async function overlayBounds(app: ElectronApplication): Promise<{
   })
 }
 
+async function popoverInsideOverlay(overlay: Page): Promise<boolean> {
+  return overlay.locator('[data-slot="popover-content"]').evaluate((el) => {
+    const rect = el.getBoundingClientRect()
+    return (
+      rect.top >= -1 &&
+      rect.left >= -1 &&
+      rect.bottom <= window.innerHeight + 1 &&
+      rect.right <= window.innerWidth + 1
+    )
+  })
+}
+
 async function openOverlay(app: ElectronApplication, page: Page): Promise<Page> {
   await page.getByRole('button', { name: '显示或隐藏悬浮面板' }).click()
   await expect.poll(() => app.windows().length).toBeGreaterThan(1)
@@ -72,6 +84,9 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(
     page.getByRole('banner').getByRole('button', { name: '显示或隐藏悬浮面板' })
   ).toBeVisible()
+  await page.getByRole('button', { name: '设置' }).click()
+  await expect(page.getByRole('slider', { name: '悬浮面板不透明度' })).toBeVisible()
+  await page.getByRole('button', { name: '返回' }).click()
   await page.screenshot({ path: testInfo.outputPath('main-toggles.png') })
   await main.getByRole('button', { name: '只看收藏' }).click()
   await expect(main.getByText('扫描资源', { exact: true })).toBeHidden()
@@ -82,7 +97,8 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('heading', { name: '收藏' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行 全量dev' })).toBeVisible()
   await expect(overlay.getByText('后端watch')).toHaveCount(0)
-  await expect(overlay.getByRole('button', { name: '不透明度' })).toBeVisible()
+  await expect(overlay.getByRole('button', { name: '不透明度' })).toHaveCount(0)
+  await expect(overlay.getByRole('button', { name: '提示音' })).toHaveCount(1)
   await expect(overlay.getByRole('button', { name: '运行收藏的脚本 同步拉取' })).toBeVisible()
   await expect(overlay.getByLabel('空闲')).toBeVisible()
   await expect.poll(async () => (await overlayBounds(app))?.height ?? 0).toBeLessThan(520)
@@ -115,16 +131,32 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   })
   await overlay.screenshot({ path: testInfo.outputPath('overlay.png') })
 
-  await overlay.getByRole('button', { name: '关闭状态提示音' }).click()
-  await expect(overlay.getByRole('button', { name: '状态提示音已关闭，点击打开' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '状态提示音已关闭，点击打开' })).toBeVisible()
-  await overlay.getByRole('button', { name: '提示音音量' }).click()
+  await overlay.getByRole('button', { name: '提示音' }).click()
   const volume = overlay.getByRole('slider', { name: '提示音音量' })
+  const mute = overlay.getByRole('switch', { name: '静音' })
+  await expect(volume).toBeVisible()
+  await expect(overlay.getByText('100%')).toBeVisible()
+  await expect(mute).toHaveAttribute('aria-checked', 'false')
+  await expect.poll(() => popoverInsideOverlay(overlay)).toBe(true)
+  await mute.click()
+  await expect(mute).toHaveAttribute('aria-checked', 'true')
+  await expect(overlay.getByRole('button', { name: '提示音' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
+  await expect(page.getByRole('button', { name: '提示音' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
   await volume.fill('0.4')
   await volume.blur()
   await expect
     .poll(() => page.evaluate(() => (window as unknown as DevhubWindow).devhub.getSettings()))
     .toMatchObject({ hookVolume: 0.4, notifyMuted: true })
+  await overlay.getByRole('heading', { name: '收藏' }).click()
+  await expect(volume).toBeHidden()
+  await overlay.getByRole('button', { name: '提示音' }).click()
+  await expect(volume).toBeVisible()
   await overlay.keyboard.press('Escape')
   await expect(volume).toBeHidden()
   const regionOf = (locator: Locator): Promise<string> =>
@@ -216,6 +248,14 @@ test('overlay shrinks when nothing is listed', async ({
   await expect(overlay.getByText('没有要放在悬浮面板上的脚本')).toBeVisible()
   await expect(overlay.getByRole('heading', { name: '长期运行' })).toHaveCount(0)
   await expect(overlay.getByRole('heading', { name: '收藏' })).toHaveCount(0)
+  await expect.poll(async () => (await overlayBounds(app))?.height ?? 999).toBeLessThan(180)
+  await expect(overlay.getByRole('button', { name: '不透明度' })).toHaveCount(0)
+  await overlay.getByRole('button', { name: '提示音' }).click()
+  await expect(overlay.getByRole('slider', { name: '提示音音量' })).toBeVisible()
+  await expect.poll(() => popoverInsideOverlay(overlay)).toBe(true)
+  await expect.poll(async () => (await overlayBounds(app))?.height ?? 0).toBeGreaterThanOrEqual(200)
+  await overlay.keyboard.press('Escape')
+  await expect(overlay.getByRole('slider', { name: '提示音音量' })).toBeHidden()
   await expect.poll(async () => (await overlayBounds(app))?.height ?? 999).toBeLessThan(180)
   await overlay.screenshot({ path: testInfo.outputPath('overlay-empty.png') })
 })

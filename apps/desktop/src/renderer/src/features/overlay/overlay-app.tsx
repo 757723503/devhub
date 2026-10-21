@@ -14,18 +14,17 @@ import { useProjectScripts } from '@renderer/features/scripts/use-scripts'
 import { useWorkspaceEventsSync } from '@renderer/features/workspaces/use-workspaces'
 import { OverlayFavorites } from './overlay-favorites'
 import { overlayFitSuspended, onOverlayFitResumed } from './overlay-fit-pause'
-import { OverlayOpacityButton } from './overlay-opacity'
 import { OverlayResizeHandles } from './overlay-resize-handles'
 import { OverlayRuns } from './overlay-runs'
 import { useOverlayWindowDrag } from './overlay-window-drag'
 
-/** Room under the header so the opacity slider is not clipped by a short window. */
-const opacityRoom = 96
+/** Pixels the speaker popover needs under the header. A short panel grows to this while it is open. */
+const speakerPopoverRoom = 200
 
 function useReportOverlayHeight(
   cardRef: React.RefObject<HTMLDivElement | null>,
   contentRef: React.RefObject<HTMLDivElement | null>,
-  minimum: number
+  floor: number | undefined
 ): void {
   useEffect(() => {
     const content = contentRef.current
@@ -38,8 +37,9 @@ function useReportOverlayHeight(
       frame = requestAnimationFrame(() => {
         if (overlayFitSuspended()) return
         const border = card.offsetHeight - card.clientHeight
-        const next = Math.max(Math.ceil(content.offsetHeight + border), minimum)
-        if (next > 0) void shell?.setOverlayContentHeight(next)
+        const natural = Math.ceil(content.offsetHeight + border)
+        const next = Math.max(natural, floor ?? 0)
+        if (next > 0) void shell?.setOverlayContentHeight(next, floor)
       })
     }
     const observer = new ResizeObserver(report)
@@ -51,36 +51,24 @@ function useReportOverlayHeight(
       resume()
       cancelAnimationFrame(frame)
     }
-  }, [cardRef, contentRef, minimum])
+  }, [cardRef, contentRef, floor])
 }
 
 const projectKey = 'devhub.overlayProjectId'
-
-/** Painted opacity, including a drag that has not been saved yet. */
-function useOverlayOpacityPreview(): {
-  opacity: number
-  preview: (value: number | null) => void
-} {
-  const settings = useSettings()
-  const [preview, setPreview] = useState<number | null>(null)
-  return {
-    opacity: preview ?? settings.data?.overlayOpacity ?? defaultOverlayOpacity,
-    preview: setPreview
-  }
-}
 
 export function OverlayApp(): React.JSX.Element {
   useRunEventsSync()
   useSettingsSync()
   useWorkspaceEventsSync()
-  const panel = useOverlayOpacityPreview()
+  const settings = useSettings()
+  const opacity = settings.data?.overlayOpacity ?? defaultOverlayOpacity
   const projects = useProjects()
   const [projectId, setProjectId] = useState<string | null>(() => localStorage.getItem(projectKey))
   const [runError, setRunError] = useState<{ error: Error; retry?: () => void } | null>(null)
-  const [opacityOpen, setOpacityOpen] = useState(false)
+  const [soundOpen, setSoundOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  useReportOverlayHeight(cardRef, contentRef, opacityOpen ? opacityRoom : 0)
+  useReportOverlayHeight(cardRef, contentRef, soundOpen ? speakerPopoverRoom : undefined)
   useOverlayWindowDrag(cardRef)
   const selected =
     projects.data?.find((project) => project.id === projectId) ?? projects.data?.[0] ?? null
@@ -93,7 +81,7 @@ export function OverlayApp(): React.JSX.Element {
     <div
       ref={cardRef}
       className="relative flex h-dvh flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
-      style={{ opacity: panel.opacity }}
+      style={{ opacity }}
     >
       <div ref={contentRef}>
         <header className="flex items-center gap-1 border-b border-foreground/10 px-2 py-1.5">
@@ -112,12 +100,7 @@ export function OverlayApp(): React.JSX.Element {
               </option>
             ))}
           </select>
-          <NotifyMuteButton size="icon-xs" />
-          <OverlayOpacityButton
-            opacity={panel.opacity}
-            onPreview={panel.preview}
-            onOpenChange={setOpacityOpen}
-          />
+          <NotifyMuteButton size="icon-xs" onOpenChange={setSoundOpen} />
           <PinButton />
           <Button
             variant="ghost"

@@ -83,6 +83,23 @@ export function fitOverlayHeight(
   return clamp(Math.round(content), overlayMinHeight, cap)
 }
 
+/**
+ * Same as {@link fitOverlayHeight}, except `floor` can raise a short window so a popover
+ * stays inside it. A taller user ceiling is left alone, and the saved ceiling is not changed.
+ */
+export function overlayHeightWithFloor(
+  contentHeight: number,
+  maxHeight: number | undefined,
+  workAreaHeight: number,
+  floor?: number
+): number {
+  const capped = fitOverlayHeight(contentHeight, maxHeight, workAreaHeight)
+  if (floor === undefined) return capped
+  const expanded = fitOverlayHeight(Math.max(contentHeight, floor), undefined, workAreaHeight)
+  const room = fitOverlayHeight(floor, undefined, workAreaHeight)
+  return Math.min(expanded, Math.max(capped, room))
+}
+
 export interface OverlaySizeLimits {
   minWidth: number
   maxWidth: number

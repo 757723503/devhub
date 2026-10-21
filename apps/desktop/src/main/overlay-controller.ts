@@ -15,7 +15,7 @@ import {
   clampOverlayWidth,
   defaultOverlayPosition,
   finishOverlayMove,
-  fitOverlayHeight,
+  overlayHeightWithFloor,
   moveOverlayFrame,
   overlayMargin,
   overlayMaxWidth,
@@ -53,8 +53,11 @@ export interface OverlayController {
   focusRun(projectId: string, runId: string): void
   getState(): { alwaysOnTop: boolean }
   setPinned(pinned: boolean): void
-  /** Reported by the renderer. The window shrinks or grows to match, under `maxHeight`. */
-  setContentHeight(height: number): void
+  /**
+   * Reported by the renderer. The window shrinks or grows to match, under `maxHeight`.
+   * `floor` temporarily raises a short window so a popover fits, and does not change the ceiling.
+   */
+  setContentHeight(height: number, floor?: number): void
   resize(gesture: OverlayResizeGesture): void
   /** Drag the panel from a blank area. Snaps when the gesture ends. */
   move(gesture: OverlayMoveGesture): void
@@ -77,6 +80,8 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
   let userWidth: number | undefined
   let maxHeight: number | undefined
   let contentHeight = overlayMinHeight
+  /** Temporary minimum while a popover is open. Absent means the ceiling applies as usual. */
+  let contentFloor: number | undefined
   let resizing = false
   let resizeStart: Rect | null = null
   let dragging = false
@@ -157,7 +162,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     const current = target.getBounds()
     const area = workAreaFor(current)
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
-    const height = fitOverlayHeight(contentHeight, maxHeight, area.height)
+    const height = overlayHeightWithFloor(contentHeight, maxHeight, area.height, contentFloor)
     const anchored = positionForSnap(current, { width, height }, area, snap)
     const position = clampOverlayPosition(anchored, { width, height }, area)
     const frame = { ...position, width, height }
@@ -186,7 +191,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     rememberSize(saved)
     const area = saved ? workAreaFor(saved) : screen.getPrimaryDisplay().workArea
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
-    const height = fitOverlayHeight(contentHeight, maxHeight, area.height)
+    const height = overlayHeightWithFloor(contentHeight, maxHeight, area.height, contentFloor)
     const restored = saved?.snap
       ? positionForSnap(saved, { width, height }, area, saved.snap)
       : saved
@@ -308,8 +313,9 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     isVisible: () => Boolean(window && !window.isDestroyed() && window.isVisible()),
     focusRun: deliverFocus,
     getState: () => ({ alwaysOnTop: pinned }),
-    setContentHeight(height) {
+    setContentHeight(height, floor) {
       contentHeight = height
+      contentFloor = floor
       // A manual resize is the source of truth until the pointer goes up.
       if (resizing || dragging) return
       if (window && !window.isDestroyed()) applyFit(window)

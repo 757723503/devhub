@@ -89,8 +89,8 @@ const shell: ShellApi = {
   focusRun: async (projectId, runId) => {
     await invoke(shellChannel.focusRun, projectId, runId)
   },
-  setOverlayContentHeight: async (height) => {
-    await invoke(shellChannel.setOverlayContentHeight, height)
+  setOverlayContentHeight: async (height, floor) => {
+    await invoke(shellChannel.setOverlayContentHeight, height, floor)
   },
   resizeOverlay: async (gesture: OverlayResizeGesture) => {
     await invoke(shellChannel.resizeOverlay, gesture)

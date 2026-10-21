@@ -21,8 +21,10 @@ const interactiveSelector = [
   'pre',
   '[role="button"]',
   '[role="slider"]',
+  '[role="switch"]',
   '[role="menuitem"]',
   '[data-no-drag]',
+  '[data-slot="popover-content"]',
   '[data-overlay-resize]',
   '[data-slot="button"]'
 ].join(',')
