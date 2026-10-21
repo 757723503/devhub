@@ -17,6 +17,7 @@ import { RunHistoryButton } from '@renderer/features/runs/run-history-button'
 import { useRuns } from '@renderer/features/runs/use-runs'
 import { ScriptStatusLight } from '@renderer/features/runs/status-light'
 import { FavoriteButton } from './favorite-button'
+import { OverlayListButton } from './overlay-list-button'
 import { sourceLabels } from './source-labels'
 import { useScriptFavorites } from './use-favorites'
 import { useProjectScripts } from './use-scripts'
@@ -265,6 +266,7 @@ function ScriptGroup({
                   )}
                 </div>
               </div>
+              <OverlayListButton projectId={projectId} script={script} />
               <FavoriteButton projectId={projectId} script={script} />
               <RunHistoryButton
                 projectId={projectId}
@@ -308,6 +310,7 @@ const configExample = `scripts:
     favorite: true
   watch:
     command: pnpm dev
+    overlay: true     # 出现在悬浮面板的长期运行列表；可在界面上关掉
     status: webpack   # 或 tstl；也可写 busy/ready/error 正则。匹配输出，不看端口
   compose:
     command: docker compose up

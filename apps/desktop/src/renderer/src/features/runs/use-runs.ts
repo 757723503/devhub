@@ -9,6 +9,7 @@ import {
 import { describePortConflicts, type PortConflict, type Run } from '@devhub/shared'
 import { api, events } from '@renderer/api'
 import { applyFavoritesEvent } from '@renderer/features/scripts/use-favorites'
+import { applyOverlayScriptsEvent } from '@renderer/features/scripts/use-overlay-scripts'
 import { applyOutputStatusEvent } from './use-output-status'
 import { applyHealthEvent } from './use-run-health'
 import { refreshHistory } from './use-run-history'
@@ -51,6 +52,8 @@ export function useRunEventsSync(): void {
           applyOutputStatusEvent(queryClient, event)
         } else if (event.type === 'favorites-updated') {
           applyFavoritesEvent(queryClient, event)
+        } else if (event.type === 'overlay-scripts-updated') {
+          applyOverlayScriptsEvent(queryClient, event)
         }
       }),
     [queryClient]

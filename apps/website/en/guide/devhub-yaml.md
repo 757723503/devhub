@@ -71,6 +71,7 @@ scripts:
   dev:
     command: yarn dev
     favorite: true
+    overlay: true # listed in the floating panel's long-running section
     status: [webpack, tstl] # or status: webpack; or busy/ready/error regexes
   deploy:
     command: npm run deploy
@@ -78,6 +79,8 @@ scripts:
 ```
 
 `favorite: true` stars the script by default (the main window can filter to stars; the floating panel's buttons are the stars). Starring or unstarring in the app is stored on this machine and overrides the file.
+
+`overlay: true` lists the script in the panel's long-running section. A `status` block alone does not. The panel icon on the script row stores a per-machine choice and overrides the file.
 
 `confirm: true` asks before a click in the script list or the panel. Batch tasks do not show that dialog.
 

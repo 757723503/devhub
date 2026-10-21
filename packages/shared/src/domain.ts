@@ -23,6 +23,11 @@ export const scriptSchema = z.object({
   confirm: z.boolean().optional(),
   /** Starred in the project file. A per-machine choice in favorites.json overrides this. */
   favorite: z.boolean().optional(),
+  /**
+   * Listed in the floating panel's long-running section. A per-machine choice in
+   * overlay-scripts.json overrides this. Declaring `status` does not list the script by itself.
+   */
+  overlay: z.boolean().optional(),
   /** Patterns matched against live output. Present only when the script declared `status`. */
   outputStatus: z
     .object({
@@ -144,6 +149,8 @@ export const projectConfigSchema = z
             confirm: z.boolean().optional(),
             /** Start this script already starred. The user can still unpin it locally. */
             favorite: z.boolean().optional(),
+            /** List this script in the floating panel's long-running section. */
+            overlay: z.boolean().optional(),
             /**
              * Output lines that move a long-running script between building, ready and error.
              * A preset name (`webpack`, `tstl`), a list of them, or `{ busy, ready, error }` regexes.

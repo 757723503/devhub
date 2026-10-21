@@ -125,6 +125,7 @@ scripts:
   dev:
     command: yarn dev
     favorite: true
+    overlay: true
     status: [webpack, tstl]
   watch:
     command: npm run watch
@@ -135,7 +136,7 @@ scripts:
     const scripts = await detect()
     expect(scripts.find((script) => script.name === 'deploy')).toMatchObject({ confirm: true })
     const dev = scripts.find((script) => script.name === 'dev')
-    expect(dev).toMatchObject({ favorite: true })
+    expect(dev).toMatchObject({ favorite: true, overlay: true })
     expect(dev?.outputStatus?.busy).toContain('Compiling')
     expect(dev?.outputStatus?.ready).toContain('Found 0 errors')
     expect(scripts.find((script) => script.name === 'watch')?.outputStatus).toEqual({

@@ -83,6 +83,7 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
           ...(entry.health ? { healthPath: entry.health } : {}),
           ...(entry.confirm ? { confirm: true } : {}),
           ...(entry.favorite ? { favorite: true } : {}),
+          ...(entry.overlay ? { overlay: true } : {}),
           ...(outputStatus ? { outputStatus } : {})
         })
       }

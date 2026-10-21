@@ -43,10 +43,11 @@ describe('createSettingsService', () => {
 
   it('keeps a custom overlay shortcut when another setting changes', async () => {
     const { service } = makeService()
-    await service.update({ overlayShortcut: 'Ctrl+Alt+F' })
+    await service.update({ overlayShortcut: 'Ctrl+Alt+F', overlayOpacity: 0.55 })
     await service.update({ stopGraceSeconds: 9 })
     await expect(service.get()).resolves.toMatchObject({
       overlayShortcut: 'Ctrl+Alt+F',
+      overlayOpacity: 0.55,
       stopGraceSeconds: 9
     })
   })

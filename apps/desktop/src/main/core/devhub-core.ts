@@ -38,6 +38,11 @@ import {
   favoritesFileSchema
 } from './favorites/favorite-service'
 import { createOutputStatusMonitor } from './output-status/output-status-monitor'
+import {
+  createOverlayScriptService,
+  emptyOverlayScriptsFile,
+  overlayScriptsFileSchema
+} from './overlay-scripts/overlay-script-service'
 import { createIdentityReader } from './process/process-identity'
 import { createProcessKiller } from './process/process-killer'
 import { nodePtySpawner } from './process/pty'
@@ -254,6 +259,15 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     emit: (event) => events.emit(event)
   })
 
+  const overlayScripts = createOverlayScriptService({
+    store: createJsonStore({
+      filePath: join(env.dataDir, 'overlay-scripts.json'),
+      schema: overlayScriptsFileSchema,
+      fallback: emptyOverlayScriptsFile
+    }),
+    emit: (event) => events.emit(event)
+  })
+
   const outputStatus = createOutputStatusMonitor({
     subscribe: (listener) => events.subscribe(listener),
     resolveRules: async (run) => {
@@ -309,6 +323,9 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     listScriptFavorites: () => favorites.list(),
     setScriptFavorite: (projectId, scriptId, favorite) =>
       favorites.set(projectId, scriptId, favorite),
+    listOverlayScripts: () => overlayScripts.list(),
+    setOverlayScript: (projectId, scriptId, overlay) =>
+      overlayScripts.set(projectId, scriptId, overlay),
     getRunOutput: async (runId) => runs.output(runId),
     writeRunInput: async (runId, data) => runs.writeInput(runId, data),
     resizeRun: async (runId, cols, rows) => runs.resize(runId, cols, rows),

@@ -1,20 +1,38 @@
 import { useEffect, useState } from 'react'
 import { Pin, SquareArrowOutUpRight, TriangleAlert, X } from 'lucide-react'
+import { defaultOverlayOpacity } from '@devhub/shared'
 import { shell } from '@renderer/api'
 import { Button } from '@renderer/components/ui/button'
 import { useProjects } from '@renderer/features/projects/use-projects'
+import { useSettings, useSettingsSync } from '@renderer/features/settings/use-settings'
 import { useRuns } from '@renderer/features/runs/use-runs'
 import { useRunEventsSync } from '@renderer/features/runs/use-runs'
 import { useProjectScripts } from '@renderer/features/scripts/use-scripts'
 import { useWorkspaceEventsSync } from '@renderer/features/workspaces/use-workspaces'
 import { OverlayFavorites } from './overlay-favorites'
+import { OverlayOpacityButton } from './overlay-opacity'
 import { OverlayRuns } from './overlay-runs'
 
 const projectKey = 'devhub.overlayProjectId'
 
+/** Painted opacity, including a drag that has not been saved yet. */
+function useOverlayOpacityPreview(): {
+  opacity: number
+  preview: (value: number | null) => void
+} {
+  const settings = useSettings()
+  const [preview, setPreview] = useState<number | null>(null)
+  return {
+    opacity: preview ?? settings.data?.overlayOpacity ?? defaultOverlayOpacity,
+    preview: setPreview
+  }
+}
+
 export function OverlayApp(): React.JSX.Element {
   useRunEventsSync()
+  useSettingsSync()
   useWorkspaceEventsSync()
+  const panel = useOverlayOpacityPreview()
   const projects = useProjects()
   const [projectId, setProjectId] = useState<string | null>(() => localStorage.getItem(projectKey))
   const [runError, setRunError] = useState<{ error: Error; retry?: () => void } | null>(null)
@@ -26,7 +44,10 @@ export function OverlayApp(): React.JSX.Element {
   }, [selected])
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md">
+    <div
+      className="flex h-dvh flex-col overflow-hidden rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
+      style={{ opacity: panel.opacity }}
+    >
       <header className="app-drag flex items-center gap-1 border-b border-foreground/10 px-2 py-1.5">
         <select
           className="app-no-drag h-7 min-w-0 flex-1 truncate rounded-md border bg-background/70 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -43,6 +64,7 @@ export function OverlayApp(): React.JSX.Element {
             </option>
           ))}
         </select>
+        <OverlayOpacityButton opacity={panel.opacity} onPreview={panel.preview} />
         <PinButton />
         <Button
           variant="ghost"

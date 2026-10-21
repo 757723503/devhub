@@ -1,5 +1,6 @@
 import type { Run } from './domain'
 import type { ScriptFavorite } from './favorites'
+import type { ScriptOverlay } from './overlay-scripts'
 import type { GroupRunState } from './groups'
 import type { RunHealth } from './health'
 import type { RunOutputStatus } from './output-status'
@@ -22,6 +23,8 @@ export type DevhubEvent =
   /** `status` is null once the run is removed. Output rules only; port health stays on `run-health`. */
   | { type: 'run-output-status'; runId: string; status: RunOutputStatus | null }
   | { type: 'favorites-updated'; favorites: ScriptFavorite[] }
+  /** Which scripts the floating panel lists as long-running. */
+  | { type: 'overlay-scripts-updated'; scripts: ScriptOverlay[] }
   | { type: 'settings-updated'; settings: Settings }
   /** Projects or workspaces changed in the core (a rescan, a workspace edit); refetch both. */
   | { type: 'projects-updated' }

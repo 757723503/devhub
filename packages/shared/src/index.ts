@@ -1,5 +1,6 @@
 export * from './active-groups'
 export * from './favorites'
+export * from './overlay-scripts'
 export * from './api'
 export * from './args'
 export * from './connect-input'

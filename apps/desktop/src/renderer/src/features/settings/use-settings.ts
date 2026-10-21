@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import {
   useMutation,
   useQuery,
@@ -7,12 +7,24 @@ import {
   type UseQueryResult
 } from '@tanstack/react-query'
 import type { Settings, SettingsPatch } from '@devhub/shared'
-import { api } from '@renderer/api'
+import { api, events } from '@renderer/api'
 
 const settingsKey = ['settings'] as const
 
 export function useSettings(): UseQueryResult<Settings> {
   return useQuery({ queryKey: settingsKey, queryFn: () => api.getSettings() })
+}
+
+/** Keeps every window's settings cache aligned when one of them writes a change. */
+export function useSettingsSync(): void {
+  const queryClient = useQueryClient()
+  useEffect(
+    () =>
+      events.subscribe((event) => {
+        if (event.type === 'settings-updated') queryClient.setQueryData(settingsKey, event.settings)
+      }),
+    [queryClient]
+  )
 }
 
 export function useUpdateSettings(): UseMutationResult<Settings, Error, SettingsPatch> {

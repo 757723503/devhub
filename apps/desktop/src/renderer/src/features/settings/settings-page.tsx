@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@renderer/components/ui/alert'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { useEditors } from '@renderer/features/editors/use-editors'
+import { OverlayOpacitySlider } from '@renderer/features/overlay/overlay-opacity'
 import { useShells } from '@renderer/features/terminal/use-shells'
 import {
   fontSizeRange,
@@ -280,6 +281,17 @@ function ProcessSection({ settings, save }: SectionProps): React.JSX.Element {
           key={settings.overlayShortcut}
           value={settings.overlayShortcut}
           onCommit={(next) => save({ overlayShortcut: next })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="不透明度"
+        htmlFor="settings-overlay-opacity"
+        description="悬浮面板整体透明度，从 30% 到 100%。面板标题栏里也能改。"
+      >
+        <OverlayOpacitySlider
+          id="settings-overlay-opacity"
+          value={settings.overlayOpacity}
+          onCommit={(value) => save({ overlayOpacity: value })}
         />
       </SettingRow>
       <SettingRow

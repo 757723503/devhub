@@ -9,6 +9,7 @@ import { useGroups, useGroupEventsSync } from '@renderer/features/groups/use-gro
 import { useProjects } from '@renderer/features/projects/use-projects'
 import { OrphansBanner } from '@renderer/features/runs/orphans-banner'
 import { useRunEventsSync } from '@renderer/features/runs/use-runs'
+import { useSettingsSync } from '@renderer/features/settings/use-settings'
 import { Sheet, SheetContent, SheetTitle } from '@renderer/components/ui/sheet'
 import { Sidebar } from '@renderer/features/sidebar/sidebar'
 import { useResizableWidth } from '@renderer/features/sidebar/use-resizable-width'
@@ -30,6 +31,7 @@ function App(): React.JSX.Element {
 
 function MainApp(): React.JSX.Element {
   useRunEventsSync()
+  useSettingsSync()
   useGroupEventsSync()
   useWorkspaceEventsSync()
   const { data: projects } = useProjects()

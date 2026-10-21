@@ -6,8 +6,12 @@ const yaml = [
   '  全量dev:',
   '    command: node watch.js',
   '    favorite: true',
+  '    overlay: true',
   '    status:',
   '      presets: [webpack]',
+  '  后端watch:',
+  '    command: node -e "setInterval(() => {}, 1000)"',
+  '    status: tstl',
   '  同步拉取:',
   '    command: node -e "console.log(\'synced\')"',
   '    favorite: true',
@@ -28,11 +32,7 @@ const watchJs = [
 ].join('\n')
 
 async function openOverlay(app: ElectronApplication, page: Page): Promise<Page> {
-  await page.evaluate(() =>
-    (
-      window as unknown as { devhubShell: { toggleOverlay(): Promise<void> } }
-    ).devhubShell.toggleOverlay()
-  )
+  await page.getByRole('button', { name: '显示或隐藏悬浮面板' }).click()
   await expect.poll(() => app.windows().length).toBeGreaterThan(1)
   const overlay = app.windows().find((window) => window.url().includes('view=overlay'))
   if (!overlay) throw new Error('overlay window did not load')
@@ -51,6 +51,8 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   const main = page.locator('main')
   await expect(main.getByRole('button', { name: '取消收藏 全量dev' })).toBeVisible()
   await expect(main.getByRole('button', { name: '收藏 扫描资源' })).toBeVisible()
+  await expect(main.getByRole('button', { name: '不在悬浮面板显示 全量dev' })).toBeVisible()
+  await expect(main.getByRole('button', { name: '在悬浮面板显示 扫描资源' })).toBeVisible()
   await main.getByRole('button', { name: '只看收藏' }).click()
   await expect(main.getByText('扫描资源', { exact: true })).toBeHidden()
   await expect(main.getByText('全量dev', { exact: true })).toBeVisible()
@@ -59,6 +61,8 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('heading', { name: '长期运行' })).toBeVisible()
   await expect(overlay.getByRole('heading', { name: '收藏' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行 全量dev' })).toBeVisible()
+  await expect(overlay.getByText('后端watch')).toHaveCount(0)
+  await expect(overlay.getByRole('button', { name: '不透明度' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行收藏的脚本 同步拉取' })).toBeVisible()
   await expect(overlay.getByLabel('空闲')).toBeVisible()
 

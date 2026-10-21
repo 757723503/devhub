@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Loader2, Play, RotateCw, Square } from 'lucide-react'
 import {
   formatActivityAge,
+  isScriptOnOverlay,
   lastOutputLine,
   statusLightFor,
   stripAnsi,
@@ -20,6 +21,7 @@ import {
 } from '@renderer/features/runs/use-runs'
 import { useHealthOf } from '@renderer/features/runs/use-run-health'
 import { ConfirmScriptDialog } from '@renderer/features/scripts/confirm-script-dialog'
+import { useOverlayScripts } from '@renderer/features/scripts/use-overlay-scripts'
 import { cn } from '@renderer/lib/utils'
 import { useRunTails } from './use-run-tails'
 
@@ -43,7 +45,10 @@ export function OverlayRuns({
   runs: Run[]
   onError: (error: Error, retry?: () => void) => void
 }): React.JSX.Element {
-  const longRunning = scripts.filter((script) => script.outputStatus)
+  const listed = useOverlayScripts()
+  const longRunning = scripts.filter((script) =>
+    isScriptOnOverlay(script, listed.data ?? [], projectId)
+  )
   const runIds = longRunning.flatMap((script) => {
     const run = findRun(runs, projectId, script.id)
     return run ? [run.id] : []
@@ -57,7 +62,7 @@ export function OverlayRuns({
       <section className="flex flex-col gap-1">
         <h3 className="px-1 text-[11px] font-medium text-muted-foreground">长期运行</h3>
         <p className="px-1 text-[11px] text-muted-foreground">
-          没有带 status 规则的脚本。在 .devhub.yaml 里为 watch 命令声明 status。
+          还没有选进这里的脚本。在主窗口点脚本旁的面板图标，或在 .devhub.yaml 里写 overlay: true。
         </p>
       </section>
     )

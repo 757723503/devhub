@@ -39,6 +39,8 @@ export const remoteAccess = {
   listOutputStatus: 'read',
   listScriptFavorites: 'read',
   setScriptFavorite: 'control',
+  listOverlayScripts: 'read',
+  setOverlayScript: 'control',
   getRunOutput: 'read',
   writeRunInput: 'terminal',
   resizeRun: 'control',

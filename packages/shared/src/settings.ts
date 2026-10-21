@@ -21,6 +21,12 @@ export const overlayShortcutSchema = z
 
 export const defaultOverlayShortcut = 'CommandOrControl+Alt+D'
 
+/** Floating panel opacity. 0.3 is still readable; 1 is the solid card. */
+export const overlayOpacityMin = 0.3
+export const overlayOpacityMax = 1
+export const defaultOverlayOpacity = 1
+export const overlayOpacitySchema = z.number().min(overlayOpacityMin).max(overlayOpacityMax)
+
 /** A shell the user added: any program run interactively in the project directory. */
 export const customShellSchema = z.object({
   id: customShellIdSchema,
@@ -52,7 +58,9 @@ export const settingsSchema = z.object({
    * Global shortcut that shows or hides the floating panel. Default matches files written
    * before this field existed.
    */
-  overlayShortcut: overlayShortcutSchema.default(defaultOverlayShortcut)
+  overlayShortcut: overlayShortcutSchema.default(defaultOverlayShortcut),
+  /** Whole-panel opacity, from 30% to 100%. Default matches files written before this field. */
+  overlayOpacity: overlayOpacitySchema.default(defaultOverlayOpacity)
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -62,7 +70,8 @@ export const defaultSettings: Settings = {
   stopGraceSeconds: 5,
   closeAction: 'tray',
   customShells: [],
-  overlayShortcut: defaultOverlayShortcut
+  overlayShortcut: defaultOverlayShortcut,
+  overlayOpacity: defaultOverlayOpacity
 }
 
 /**
@@ -76,7 +85,8 @@ export const settingsPatchSchema = settingsSchema
     // Redeclared without defaults: under `.partial()` a default still applies, and an unrelated
     // update would reset the shortcut or wipe custom shells.
     customShells: z.array(customShellSchema).max(10),
-    overlayShortcut: overlayShortcutSchema
+    overlayShortcut: overlayShortcutSchema,
+    overlayOpacity: overlayOpacitySchema
   })
   .partial()
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

@@ -71,13 +71,16 @@ scripts:
   dev:
     command: yarn dev
     favorite: true
+    overlay: true # 出现在悬浮面板的长期运行列表
     status: [webpack, tstl] # 或 status: webpack；也可写 busy/ready/error 正则
   deploy:
     command: npm run deploy
     confirm: true # 点击运行前先确认
 ```
 
-`favorite: true` 让脚本默认出现在收藏里（主窗口可只看收藏，悬浮面板的按钮就是收藏）。在界面上加星或取消会记在本机，并覆盖文件里的默认值。
+`favorite: true` 让脚本默认出现在收藏里（主窗口可只看收藏，悬浮面板底部的按钮就是收藏）。在界面上加星或取消会记在本机，并覆盖文件里的默认值。
+
+`overlay: true` 让脚本出现在悬浮面板的长期运行列表。只写 `status` 不会自动放进去。脚本行上的面板图标可以在本机改这个选择，并覆盖文件里的默认值。
 
 `confirm: true` 时，从脚本列表或悬浮面板点击运行会先询问。批量任务不弹这个确认框。
 

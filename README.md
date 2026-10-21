@@ -89,7 +89,7 @@ scripts:
     cwd: deploy # optional, relative to the project; cannot leave it
 ```
 
-Changes apply on refresh or when the window regains focus; mistakes are reported in the script list with a line number or field path. A script may also set `favorite: true`, `confirm: true` (ask before running), and `status` (building / ready / error from its output; presets `webpack` and `tstl`). The tray menu or Ctrl+Alt+D opens a small always-on-top panel of favorites and those long-running scripts.
+Changes apply on refresh or when the window regains focus; mistakes are reported in the script list with a line number or field path. A script may also set `favorite: true` (buttons on the floating panel), `overlay: true` (its long-running list), `confirm: true` (ask before running), and `status` (building / ready / error from its output; presets `webpack` and `tstl`). The project header, the tray menu, or Ctrl+Alt+D opens the panel. Its opacity (30%–100%) is in Settings and on the panel.
 
 ## Development
 

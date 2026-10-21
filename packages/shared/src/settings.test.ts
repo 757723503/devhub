@@ -53,6 +53,17 @@ describe('custom shells in settings', () => {
     expect(settingsPatchSchema.safeParse({ overlayShortcut: '' }).success).toBe(false)
   })
 
+  it('loads the default panel opacity and does not inject it into an unrelated patch', () => {
+    const { overlayOpacity: _ignored, ...older } = defaultSettings
+    void _ignored
+    expect(settingsSchema.parse(older).overlayOpacity).toBe(1)
+    expect(settingsPatchSchema.parse({ overlayOpacity: 0.3 })).toEqual({ overlayOpacity: 0.3 })
+    expect(settingsPatchSchema.parse({ overlayOpacity: 1 })).toEqual({ overlayOpacity: 1 })
+    expect(settingsPatchSchema.parse({ stopGraceSeconds: 4 })).toEqual({ stopGraceSeconds: 4 })
+    expect(settingsPatchSchema.safeParse({ overlayOpacity: 0.29 }).success).toBe(false)
+    expect(settingsPatchSchema.safeParse({ overlayOpacity: 1.01 }).success).toBe(false)
+  })
+
   it('accepts a custom shell as the default shell, and rejects malformed ids', () => {
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-wsl' }).success).toBe(true)
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-../x' }).success).toBe(false)

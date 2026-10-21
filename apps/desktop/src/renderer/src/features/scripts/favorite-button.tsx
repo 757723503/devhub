@@ -20,7 +20,7 @@ export function FavoriteButton({
       size="icon-xs"
       aria-pressed={starred}
       aria-label={starred ? `取消收藏 ${script.name}` : `收藏 ${script.name}`}
-      title={starred ? '取消收藏' : '收藏'}
+      title={starred ? '取消收藏' : '收藏：出现在悬浮面板底部'}
       disabled={setFavorite.isPending}
       onClick={() => setFavorite.mutate({ projectId, scriptId: script.id, favorite: !starred })}
     >

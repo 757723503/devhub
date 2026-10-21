@@ -14,6 +14,7 @@ import type {
 } from './domain'
 import type { RunOutputSnapshot } from './events'
 import type { ScriptFavorite } from './favorites'
+import type { ScriptOverlay } from './overlay-scripts'
 import type { Group, GroupInput, GroupRunState } from './groups'
 import type { RunHealth } from './health'
 import type { RunHistoryOutput, RunRecord } from './history'
@@ -89,6 +90,13 @@ export interface DevhubApi {
     scriptId: string,
     favorite: boolean
   ): Promise<ScriptFavorite[]>
+  /**
+   * Per-machine choices for the floating panel's long-running list.
+   * A script with no entry uses its `.devhub.yaml` `overlay` flag.
+   */
+  listOverlayScripts(): Promise<ScriptOverlay[]>
+  /** Stores whether one script is listed on the panel and returns the full list. */
+  setOverlayScript(projectId: string, scriptId: string, overlay: boolean): Promise<ScriptOverlay[]>
   /** Recent output; combine with `run-output` events through `OutputCursor`. */
   getRunOutput(runId: string): Promise<RunOutputSnapshot>
   /** Sends terminal input (keystrokes) to an active run. */
@@ -162,6 +170,8 @@ export const devhubApiMethods = [
   'listOutputStatus',
   'listScriptFavorites',
   'setScriptFavorite',
+  'listOverlayScripts',
+  'setOverlayScript',
   'getRunOutput',
   'writeRunInput',
   'resizeRun',
