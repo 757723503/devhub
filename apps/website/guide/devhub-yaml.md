@@ -102,3 +102,22 @@ notify:
 ```
 
 `sound` 播放内置提示音或一个 wav。`toast` 是系统通知。`run` 在项目目录后台执行一条命令（标准输入是事件 JSON，默认 30 秒超时），不再另开终端。标题栏和悬浮面板上的喇叭点开后可以静音和调总音量；关掉声音或把音量调到 0 时，通知和命令仍会执行。悬浮面板用托盘或 Ctrl+Alt+D 打开（可在设置里改快捷键）。空白处可以拖动面板，拖到屏幕边缘会贴边。
+
+## 单个脚本的钩子
+
+主窗口脚本行（面板图标和星标的左边）和悬浮面板上的齿轮，打开的是这一条脚本的设置。收藏、长期运行、运行前确认、输出状态和 Hooks 会写进该项目的 `.devhub.yaml`。Hooks 与设置页相同，但不写 `match`，保存后只匹配这个脚本。执行顺序是：设置页 Hooks、文件根上的 `hooks`、脚本条目里的 `hooks`、上面的 `notify`。
+
+没有 `command` 的条目不会变成另一条自定义脚本，只给同名的 npm / Maven / Gradle 脚本加上这些设置：
+
+```yaml
+scripts:
+  dev: # package.json 里已有的 npm script
+    favorite: true
+    confirm: true
+    hooks:
+      onReady:
+        - actions:
+            - type: sound
+              file: default
+            - type: toast
+```

@@ -18,6 +18,7 @@ import { useRuns } from '@renderer/features/runs/use-runs'
 import { ScriptStatusLight } from '@renderer/features/runs/status-light'
 import { FavoriteButton } from './favorite-button'
 import { OverlayListButton } from './overlay-list-button'
+import { ScriptSettingsButton } from './script-settings-dialog'
 import { sourceLabels } from './source-labels'
 import { useScriptFavorites } from './use-favorites'
 import { useProjectScripts } from './use-scripts'
@@ -266,6 +267,7 @@ function ScriptGroup({
                   )}
                 </div>
               </div>
+              <ScriptSettingsButton projectId={projectId} script={script} />
               <OverlayListButton projectId={projectId} script={script} />
               <FavoriteButton projectId={projectId} script={script} />
               <RunHistoryButton
@@ -331,7 +333,8 @@ function ConfigHint(): React.JSX.Element {
         {configExample}
       </pre>
       <p className="mt-1">
-        cwd 相对于项目目录；port 省略时会从命令推断。保存后点「刷新」或切回 DevHub 即生效。
+        cwd 相对于项目目录；port 省略时会从命令推断。保存后点「刷新」或切回 DevHub
+        即生效。脚本行上的齿轮可以把收藏、长期运行、运行前确认、输出状态和钩子写进这个文件。
       </p>
     </details>
   )

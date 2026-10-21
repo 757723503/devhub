@@ -21,6 +21,7 @@ import type { RunHistoryOutput, RunRecord } from './history'
 import type { RunOutputStatus } from './output-status'
 import type { RemoteConfigPatch, RemoteState } from './remote'
 import type { HookEventName } from './hooks'
+import type { ScriptSettingsPatch, ScriptSettingsView } from './script-settings'
 import type { Settings, SettingsPatch } from './settings'
 import type { WorkspacePatch, WorkspaceView } from './workspaces'
 
@@ -114,6 +115,26 @@ export interface DevhubApi {
    * so a button in Settings can try the actions. Project-file hooks are not included.
    */
   testHook(event: HookEventName): Promise<{ fired: number }>
+  /** Flags, status source, and hooks stored for one script. Favorite and overlay are the effective values. */
+  getScriptSettings(projectId: string, scriptId: string): Promise<ScriptSettingsView>
+  /**
+   * Writes this script's settings into the project's `.devhub.yaml` and stores the same
+   * favorite and overlay choice on this machine.
+   */
+  updateScriptSettings(
+    projectId: string,
+    scriptId: string,
+    patch: ScriptSettingsPatch
+  ): Promise<ScriptSettingsView>
+  /**
+   * Runs this script's saved hooks and legacy `notify`. Global and project-root hooks are skipped.
+   * Match and the interval are ignored.
+   */
+  testScriptHook(
+    projectId: string,
+    scriptId: string,
+    event: HookEventName
+  ): Promise<{ fired: number }>
   listGroups(): Promise<Group[]>
   /** Creates a group (input without id) or replaces an existing one. */
   saveGroup(input: GroupInput): Promise<Group>
@@ -185,6 +206,9 @@ export const devhubApiMethods = [
   'getSettings',
   'updateSettings',
   'testHook',
+  'getScriptSettings',
+  'updateScriptSettings',
+  'testScriptHook',
   'listGroups',
   'saveGroup',
   'deleteGroup',

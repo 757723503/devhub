@@ -21,6 +21,7 @@ import {
 } from '@renderer/features/runs/use-runs'
 import { useHealthOf } from '@renderer/features/runs/use-run-health'
 import { ConfirmScriptDialog } from '@renderer/features/scripts/confirm-script-dialog'
+import { ScriptSettingsButton } from '@renderer/features/scripts/script-settings-dialog'
 import { useOverlayScripts } from '@renderer/features/scripts/use-overlay-scripts'
 import { cn } from '@renderer/lib/utils'
 import { useRunTails } from './use-run-tails'
@@ -38,12 +39,14 @@ export function OverlayRuns({
   projectId,
   scripts,
   runs,
-  onError
+  onError,
+  onSettingsOpenChange
 }: {
   projectId: string
   scripts: Script[]
   runs: Run[]
   onError: (error: Error, retry?: () => void) => void
+  onSettingsOpenChange?: (open: boolean) => void
 }): React.JSX.Element | null {
   const listed = useOverlayScripts()
   const longRunning = scripts.filter((script) =>
@@ -74,6 +77,7 @@ export function OverlayRuns({
             open={openId === script.id}
             onOpen={() => setOpenId(script.id)}
             onError={onError}
+            onSettingsOpenChange={onSettingsOpenChange}
           />
         ))}
       </ul>
@@ -95,7 +99,8 @@ function OverlayRunRow({
   now,
   open,
   onOpen,
-  onError
+  onError,
+  onSettingsOpenChange
 }: {
   projectId: string
   script: Script
@@ -105,6 +110,7 @@ function OverlayRunRow({
   open: boolean
   onOpen: () => void
   onError: (error: Error, retry?: () => void) => void
+  onSettingsOpenChange?: (open: boolean) => void
 }): React.JSX.Element {
   const output = useOutputStatusOf(run?.id)
   const health = useHealthOf(run?.status === 'running' ? run.id : undefined)
@@ -163,6 +169,12 @@ function OverlayRunRow({
           onClick={(event) => event.stopPropagation()}
           onDoubleClick={(event) => event.stopPropagation()}
         >
+          <ScriptSettingsButton
+            projectId={projectId}
+            script={script}
+            compact
+            onOpenChange={onSettingsOpenChange}
+          />
           {active ? (
             <>
               <Button

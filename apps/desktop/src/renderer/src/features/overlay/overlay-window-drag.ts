@@ -26,7 +26,10 @@ const interactiveSelector = [
   '[data-no-drag]',
   '[data-slot="popover-content"]',
   '[data-overlay-resize]',
-  '[data-slot="button"]'
+  '[data-slot="button"]',
+  '[role="dialog"]',
+  '[data-slot="dialog-content"]',
+  '[data-slot="dialog-overlay"]'
 ].join(',')
 
 export function isOverlayDragSurface(target: EventTarget | null): boolean {

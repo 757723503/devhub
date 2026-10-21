@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   defaultSettings,
   resolveNotify,
   type DevhubEvent,
   type Run,
+  type ScriptHookEventMap,
   type ScriptNotify
 } from '@devhub/shared'
 import type { HookCommandRequest as CommandRequest } from './hook-command'
@@ -36,7 +37,14 @@ describe('createHookRunner', () => {
   let commands: CommandRequest[]
   let now: number
   let scriptNotify: ScriptNotify | null
+  let scriptHooks: ScriptHookEventMap = {}
   let hooks = defaultSettings.hooks
+
+  beforeEach(() => {
+    scriptNotify = null
+    scriptHooks = {}
+    hooks = defaultSettings.hooks
+  })
 
   const publish = (event: DevhubEvent): void => listeners.forEach((listener) => listener(event))
   const flush = async (): Promise<void> => {
@@ -58,7 +66,10 @@ describe('createHookRunner', () => {
         name: '全量dev',
         projectName: 'axe_king',
         projectPath: '/repo',
-        ...(scriptNotify ? { notify: scriptNotify } : {})
+        ...(scriptNotify ? { notify: scriptNotify } : {}),
+        ...(scriptHooks.onReady || scriptHooks.onError || scriptHooks.onExit || scriptHooks.onStart
+          ? { hooks: scriptHooks }
+          : {})
       }),
       loadProjectHooks: async () => ({}),
       runCommand: async (request) => {
@@ -196,5 +207,31 @@ describe('createHookRunner', () => {
     const tested = await runner.test('onStart')
     expect(tested.fired).toBe(1)
     await expect(runner.test('nope')).rejects.toThrow('钩子事件无效')
+  })
+
+  it('fires a script hook on start, and a script test skips global hooks', async () => {
+    scriptNotify = null
+    scriptHooks = { onStart: [{ actions: [{ type: 'toast' }], interval: 15 }] }
+    hooks = {
+      hooks: {
+        onStart: [{ actions: [{ type: 'sound', file: 'error' }], interval: 0 }]
+      }
+    }
+    const runner = start()
+    publish({ type: 'run-updated', run: scriptRun('running') })
+    publish({ type: 'run-updated', run: scriptRun('running') })
+    await flush()
+    const notes = emitted.filter((event) => event.type === 'status-notify')
+    expect(notes).toHaveLength(2)
+    expect(notes[0]).toMatchObject({ sound: 'error', toast: false, phase: 'start' })
+    expect(notes[1]).toMatchObject({ toast: true, phase: 'start' })
+
+    emitted.length = 0
+    const tested = await runner.testScript('p1', 'custom:dev', 'onStart')
+    expect(tested.fired).toBe(1)
+    expect(emitted.filter((event) => event.type === 'status-notify')).toEqual([
+      expect.objectContaining({ toast: true, phase: 'start', body: '测试：全量dev 已启动' })
+    ])
+    await expect(runner.testScript('p1', 'custom:dev', 'nope')).rejects.toThrow('钩子事件无效')
   })
 })

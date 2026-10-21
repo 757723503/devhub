@@ -4,6 +4,7 @@ import {
   projectConfigSchema,
   resolveNotify,
   resolveOutputStatus,
+  scriptHooksAreEmpty,
   type ProjectConfig,
   type Script
 } from '@devhub/shared'
@@ -16,6 +17,15 @@ export interface ConfigDetectorDeps {
 }
 
 export const configFileNames = ['.devhub.yaml', '.devhub.yml']
+
+function commandForPlatform(
+  command: ProjectConfig['scripts'][string]['command'],
+  platform: NodeJS.Platform
+): string | undefined {
+  if (!command) return undefined
+  if (typeof command === 'string') return command
+  return platform === 'win32' ? command.windows : command.linux
+}
 
 export interface LoadedProjectConfig {
   fileName: string
@@ -69,12 +79,8 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
 
       const scripts: Script[] = []
       for (const [name, entry] of Object.entries(config.scripts)) {
-        const command =
-          typeof entry.command === 'string'
-            ? entry.command
-            : platform === 'win32'
-              ? entry.command.windows
-              : entry.command.linux
+        const command = commandForPlatform(entry.command, platform)
+        // No command here: the entry only annotates a script another detector found.
         // A command written only for the other platform is simply not offered here.
         if (!command) continue
 
@@ -92,6 +98,8 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
         }
         const outputStatus = entry.status ? resolveOutputStatus(entry.status) : undefined
         const notify = entry.notify ? resolveNotify(entry.notify) : undefined
+        const hooks =
+          entry.hooks && !scriptHooksAreEmpty({ hooks: entry.hooks }) ? entry.hooks : undefined
         scripts.push({
           id: `custom:${name}`,
           name,
@@ -105,7 +113,8 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
           ...(entry.favorite ? { favorite: true } : {}),
           ...(entry.overlay ? { overlay: true } : {}),
           ...(outputStatus ? { outputStatus } : {}),
-          ...(notify ? { notify } : {})
+          ...(notify ? { notify } : {}),
+          ...(hooks ? { hooks } : {})
         })
       }
       return scripts

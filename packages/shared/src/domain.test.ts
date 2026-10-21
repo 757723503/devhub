@@ -28,6 +28,27 @@ describe('projectConfigSchema', () => {
     expect(projectConfigSchema.safeParse({ scripts: { api: { command: {} } } }).success).toBe(false)
   })
 
+  it('accepts an annotation that has settings and no command', () => {
+    const parsed = projectConfigSchema.safeParse({
+      scripts: { api: { cwd: 'server' } }
+    })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.path).toEqual(['scripts', 'api', 'command'])
+    }
+    const config = projectConfigSchema.parse({
+      scripts: {
+        dev: {
+          favorite: true,
+          hooks: { onStart: [{ actions: [{ type: 'toast' }] }] }
+        }
+      }
+    })
+    expect(config.scripts.dev?.command).toBeUndefined()
+    expect(config.scripts.dev?.favorite).toBe(true)
+    expect(config.scripts.dev?.hooks?.onStart).toHaveLength(1)
+  })
+
   it.each([
     [{ scripts: { api: {} } }],
     [{ scripts: { api: { command: '' } } }],

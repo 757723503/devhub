@@ -56,6 +56,7 @@ import { listNetworkAddresses } from './remote/network-addresses'
 import { createRemoteConfigStore, emptyRemoteFile, remoteFileSchema } from './remote/remote-config'
 import { createRemoteHost } from './remote/remote-host'
 import { createScriptService } from './scripts/script-service'
+import { createScriptSettingsService } from './scripts/script-settings-service'
 import {
   createSettingsService,
   emptySettingsFile,
@@ -293,7 +294,8 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
           name: found.script.name,
           projectName: found.project.name,
           projectPath: found.project.path,
-          ...(found.script.notify ? { notify: found.script.notify } : {})
+          ...(found.script.notify ? { notify: found.script.notify } : {}),
+          ...(found.script.hooks ? { hooks: found.script.hooks } : {})
         }
       } catch {
         return null
@@ -303,6 +305,8 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     runCommand: (request) => runHookCommand(request),
     emit: (event) => events.emit(event)
   })
+
+  const scriptSettings = createScriptSettingsService({ scripts, favorites, overlayScripts })
 
   const health = createHealthMonitor({
     subscribe: (listener) => events.subscribe(listener),
@@ -357,6 +361,11 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     getSettings: () => settings.get(),
     updateSettings: (patch) => settings.update(patch),
     testHook: (event) => hookRunner.test(event),
+    getScriptSettings: (projectId, scriptId) => scriptSettings.get(projectId, scriptId),
+    updateScriptSettings: (projectId, scriptId, patch) =>
+      scriptSettings.update(projectId, scriptId, patch),
+    testScriptHook: (projectId, scriptId, event) =>
+      hookRunner.testScript(projectId, scriptId, event),
     listGroups: () => groupService.list(),
     saveGroup: (input) => groupService.save(input),
     deleteGroup: async (groupId) => {

@@ -7,7 +7,8 @@ import {
   hookEventInfo,
   hookProcessEnv,
   hookStdin,
-  notifyRules
+  notifyRules,
+  scriptHooksDocumentSchema
 } from './hooks'
 import { resolveNotify } from './notify'
 
@@ -182,5 +183,66 @@ describe('hook event payload', () => {
     expect(ready.exitCode).toBeNull()
     expect(hookProcessEnv(ready).DEVHUB_EXIT_CODE).toBe('')
     expect(ready.status).toBe('ready')
+  })
+})
+
+describe('script hooks', () => {
+  it('rejects match on a script rule', () => {
+    const parsed = scriptHooksDocumentSchema.safeParse({
+      hooks: {
+        onReady: [{ match: { script: '全量dev' }, actions: [{ type: 'toast' }] }]
+      }
+    })
+    expect(parsed.success).toBe(false)
+  })
+
+  it('runs global, project, script, then notify, and binds the script name', () => {
+    const notify = resolveNotify({ onReady: { toast: true }, interval: 0 })
+    const rules = collectHookRules({
+      event: 'onReady',
+      globalHooks: {
+        hooks: { onReady: [{ actions: [{ type: 'toast', message: 'global' }], interval: 0 }] }
+      },
+      projectHooks: {
+        onReady: [{ actions: [{ type: 'toast', message: 'project' }], interval: 0 }]
+      },
+      scriptHooks: {
+        onReady: [{ actions: [{ type: 'toast', message: 'script' }], interval: 0 }]
+      },
+      notify,
+      scriptName: '全量dev'
+    })
+    expect(rules.map((rule) => rule.id)).toEqual([
+      'global:onReady:0',
+      'project:onReady:0',
+      'script:onReady:0',
+      'notify:onReady'
+    ])
+    const hit = planHookActions(rules, {
+      event: 'onReady',
+      projectName: 'axe_king',
+      scriptName: '全量dev',
+      seenReady: false,
+      now: 1,
+      lastAt: new Map()
+    })
+    expect(hit.planned.map((entry) => entry.action)).toEqual([
+      { type: 'toast', message: 'global' },
+      { type: 'toast', message: 'project' },
+      { type: 'toast', message: 'script' },
+      { type: 'toast' }
+    ])
+    const other = planHookActions(rules, {
+      event: 'onReady',
+      projectName: 'axe_king',
+      scriptName: 'other',
+      seenReady: false,
+      now: 1,
+      lastAt: new Map()
+    })
+    expect(other.planned.map((entry) => entry.action)).toEqual([
+      { type: 'toast', message: 'global' },
+      { type: 'toast', message: 'project' }
+    ])
   })
 })

@@ -107,6 +107,29 @@ describe('createScriptService', () => {
     expect(called).toBe(false)
   })
 
+  it('applies a command-less yaml entry onto the npm script of the same name', async () => {
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }))
+    await writeFile(
+      join(dir, '.devhub.yaml'),
+      [
+        'scripts:',
+        '  dev:',
+        '    confirm: true',
+        '    hooks:',
+        '      onStart:',
+        '        - actions:',
+        '            - type: toast'
+      ].join('\n')
+    )
+    const { scripts } = await makeService(dir).list('p1')
+    expect(scripts.map((script) => script.id)).toEqual(['npm:dev'])
+    expect(scripts[0]).toMatchObject({
+      command: 'npm run dev',
+      confirm: true,
+      hooks: { onStart: [{ actions: [{ type: 'toast' }] }] }
+    })
+  })
+
   it('finds a script by id from a fresh scan', async () => {
     await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }))
     const { project, script } = await makeService(dir).find('p1', 'npm:dev')

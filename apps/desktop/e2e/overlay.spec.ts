@@ -119,10 +119,11 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(main.getByRole('button', { name: '收藏 扫描资源' })).toBeVisible()
   await expect(main.getByRole('button', { name: '不在悬浮面板显示 全量dev' })).toBeVisible()
   await expect(main.getByRole('button', { name: '在悬浮面板显示 扫描资源' })).toBeVisible()
+  await expect(main.getByRole('button', { name: '全量dev 的设置' })).toBeVisible()
   await expect(
     page.getByRole('banner').getByRole('button', { name: '显示或隐藏悬浮面板' })
   ).toBeVisible()
-  await page.getByRole('button', { name: '设置' }).click()
+  await page.getByRole('button', { name: '设置', exact: true }).click()
   await expect(page.getByRole('slider', { name: '悬浮面板不透明度' })).toBeVisible()
   await page.getByRole('button', { name: '返回' }).click()
   await page.screenshot({ path: testInfo.outputPath('main-toggles.png') })
@@ -134,6 +135,7 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('heading', { name: '长期运行' })).toBeVisible()
   await expect(overlay.getByRole('heading', { name: '收藏' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行 全量dev' })).toBeVisible()
+  await expect(overlay.getByRole('button', { name: '全量dev 的设置' })).toHaveCount(2)
   await expect(overlay.getByText('后端watch')).toHaveCount(0)
   await expect(overlay.getByRole('button', { name: '不透明度' })).toHaveCount(0)
   await expect(overlay.getByRole('button', { name: '提示音' })).toHaveCount(1)
@@ -244,16 +246,30 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
 
   const beforeResize = await overlayBounds(app)
   const edge = overlay.locator('[data-overlay-resize="e"]')
-  const box = await edge.boundingBox()
-  if (!box || !beforeResize) throw new Error('overlay resize handle is missing')
+  if (!beforeResize || !(await edge.boundingBox()))
+    throw new Error('overlay resize handle is missing')
   const widths: number[] = []
-  const gripX = box.x + box.width / 2
-  const gripY = box.y + Math.min(box.height / 2, 80)
-  await overlay.mouse.move(gripX, gripY)
+  const grip = { x: 0, y: 0 }
+  await expect
+    .poll(async () => {
+      const current = await edge.boundingBox()
+      if (!current) return ''
+      grip.x = current.x + current.width / 2
+      grip.y = current.y + Math.min(current.height / 2, 80)
+      return overlay.evaluate(
+        ({ px, py }) => {
+          const el = document.elementFromPoint(px, py)
+          return el?.closest('[data-overlay-resize]')?.getAttribute('data-overlay-resize') ?? ''
+        },
+        { px: grip.x, py: grip.y }
+      )
+    })
+    .toBe('e')
+  await overlay.mouse.move(grip.x, grip.y)
   await overlay.mouse.down()
   // Drag inward in steps and sample the width. A flicker would jump the width back up.
   for (let step = 1; step <= 8; step++) {
-    await overlay.mouse.move(gripX - step * 9, gripY)
+    await overlay.mouse.move(grip.x - step * 9, grip.y)
     const bounds = await overlayBounds(app)
     if (bounds) widths.push(bounds.width)
   }
@@ -302,4 +318,47 @@ test('overlay shrinks when nothing is listed', async ({
   await expect(overlay.getByRole('slider', { name: '提示音音量' })).toBeHidden()
   await expect.poll(async () => (await overlayBounds(app))?.height ?? 999).toBeLessThan(180)
   await overlay.screenshot({ path: testInfo.outputPath('overlay-empty.png') })
+})
+
+test('overlay gear opens this script’s settings inside the window', async ({
+  launchDevhub,
+  createProject
+}) => {
+  const dir = await createProject('gear', {
+    '.devhub.yaml': [
+      'scripts:',
+      '  mock:',
+      '    command: node -e "console.log(1)"',
+      '    overlay: true'
+    ].join('\n')
+  })
+  const { app, page } = await launchDevhub()
+  await addProjectViaApi(page, dir)
+  const overlay = await openOverlay(app, page)
+  const gear = overlay.getByRole('button', { name: 'mock 的设置' })
+  await expect(gear).toBeVisible()
+  await expect(gear).toHaveClass(/app-no-drag/)
+  expect(
+    (
+      await gear.evaluate((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region'))
+    ).trim()
+  ).not.toBe('drag')
+  await gear.click()
+  const dialog = overlay.getByRole('dialog')
+  await expect(dialog.getByRole('heading', { name: 'mock 的设置' })).toBeVisible()
+  await expect
+    .poll(() =>
+      dialog.evaluate((el) => {
+        const rect = el.getBoundingClientRect()
+        return (
+          rect.top >= -1 &&
+          rect.left >= -1 &&
+          rect.bottom <= window.innerHeight + 1 &&
+          rect.right <= window.innerWidth + 1
+        )
+      })
+    )
+    .toBe(true)
+  await dialog.getByRole('checkbox', { name: '收藏' }).check()
+  await expect(dialog.getByRole('checkbox', { name: '收藏' })).toBeChecked()
 })

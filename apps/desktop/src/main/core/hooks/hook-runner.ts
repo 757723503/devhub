@@ -14,6 +14,7 @@ import {
   type HookEventMap,
   type HookEventName,
   type HooksDocument,
+  type ScriptHookEventMap,
   type ScriptNotify,
   type Settings
 } from '@devhub/shared'
@@ -24,6 +25,7 @@ export interface HookScript {
   projectName: string
   projectPath: string
   notify?: ScriptNotify
+  hooks?: ScriptHookEventMap
 }
 
 export interface HookRunnerDeps {
@@ -39,6 +41,8 @@ export interface HookRunnerDeps {
 
 export interface HookRunner {
   test(event: unknown): Promise<{ fired: number }>
+  /** This script's saved hooks and `notify` only. Global and project-root hooks are skipped. */
+  testScript(projectId: unknown, scriptId: unknown, event: unknown): Promise<{ fired: number }>
   dispose(): void
 }
 
@@ -53,6 +57,7 @@ interface FireTarget {
   scriptName: string
   notify: ScriptNotify | null
   projectHooks: HookEventMap
+  scriptHooks: ScriptHookEventMap
   globalHooks: HooksDocument
   exitCode: number | null
   test: boolean
@@ -152,6 +157,7 @@ export function createHookRunner({
       event: target.event,
       globalHooks: target.globalHooks,
       projectHooks: target.projectHooks,
+      scriptHooks: target.scriptHooks,
       notify: target.notify,
       scriptName: target.scriptName
     })
@@ -210,6 +216,7 @@ export function createHookRunner({
       scriptName: script.name,
       notify: script.notify ?? null,
       projectHooks,
+      scriptHooks: script.hooks ?? {},
       globalHooks: settings.hooks,
       exitCode,
       test: false
@@ -267,7 +274,37 @@ export function createHookRunner({
           scriptName: 'test',
           notify: null,
           projectHooks: {},
+          scriptHooks: {},
           globalHooks: settings.hooks,
+          exitCode: parsed.data === 'onExit' ? 0 : null,
+          test: true
+        })
+      }
+    },
+    async testScript(projectId, scriptId, event) {
+      const parsed = hookEventSchema.safeParse(event)
+      if (!parsed.success) throw new DevhubError('INVALID_INPUT', '钩子事件无效')
+      if (typeof projectId !== 'string' || projectId.length === 0) {
+        throw new DevhubError('INVALID_INPUT', '脚本设置无效')
+      }
+      if (typeof scriptId !== 'string' || scriptId.length === 0) {
+        throw new DevhubError('INVALID_INPUT', '脚本设置无效')
+      }
+      const script = await resolveScript(projectId, scriptId).catch(() => null)
+      if (!script) throw new DevhubError('SCRIPT_NOT_FOUND', '脚本不存在，可能已从项目中删除')
+      return {
+        fired: await fire({
+          event: parsed.data,
+          runId: 'test',
+          projectId,
+          projectName: script.projectName,
+          projectPath: script.projectPath,
+          scriptId,
+          scriptName: script.name,
+          notify: script.notify ?? null,
+          projectHooks: {},
+          scriptHooks: script.hooks ?? {},
+          globalHooks: { hooks: {} },
           exitCode: parsed.data === 'onExit' ? 0 : null,
           test: true
         })

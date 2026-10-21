@@ -158,6 +158,28 @@ scripts:
     })
   })
 
+  it('keeps hooks on a custom script and skips an annotation that has no command', async () => {
+    await write(`
+scripts:
+  dev:
+    command: yarn dev
+    hooks:
+      onStart:
+        - actions:
+            - type: toast
+  watch:
+    favorite: true
+    hooks:
+      onReady:
+        - actions:
+            - type: sound
+              file: default
+`)
+    const scripts = await detect()
+    expect(scripts.map((script) => script.name)).toEqual(['dev'])
+    expect(scripts[0]?.hooks?.onStart?.[0]?.actions).toEqual([{ type: 'toast' }])
+  })
+
   it('reports a status regex that will not compile', async () => {
     await write('scripts:\n  dev:\n    command: yarn dev\n    status:\n      busy: "("\n')
     await expect(detect()).rejects.toThrow(/scripts\.dev\.status/)

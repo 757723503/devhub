@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { healthPathSchema } from './health'
-import { hookEventMapSchema } from './hooks'
+import { hookEventMapSchema, scriptHookEventMapSchema } from './hooks'
 import { notifyConfigSchema, scriptNotifySchema } from './notify'
 import { outputStatusConfigSchema } from './output-status'
 
@@ -32,6 +32,8 @@ export const scriptSchema = z.object({
   overlay: z.boolean().optional(),
   /** Sound, toast, and callback when output status changes. Present when yaml declared `notify`. */
   notify: scriptNotifySchema.optional(),
+  /** Hooks from this script's `.devhub.yaml` entry. `match` is applied when they run. */
+  hooks: scriptHookEventMapSchema.optional(),
   /** Patterns matched against live output. Present only when the script declared `status`. */
   outputStatus: z
     .object({
@@ -136,7 +138,7 @@ const configCommandSchema = z.union([
 export const projectConfigSchema = z
   .object({
     /**
-     * Project-wide hooks, merged with the global Settings document and each script's `notify`.
+     * Project-wide hooks. Merged after Settings and before each script's own hooks and `notify`.
      * Same shape as the `hooks` object inside the settings JSON.
      */
     hooks: hookEventMapSchema.optional(),
@@ -145,7 +147,11 @@ export const projectConfigSchema = z
         z.string().trim().min(1).max(60),
         z
           .object({
-            command: configCommandSchema,
+            /**
+             * Omitted when this entry only annotates a script another detector already found
+             * (an npm script, for example). A bare entry with neither a command nor settings is invalid.
+             */
+            command: configCommandSchema.optional(),
             /** Relative to the project; must stay inside it. */
             cwd: z.string().optional(),
             description: z.string().optional(),
@@ -169,9 +175,31 @@ export const projectConfigSchema = z
              * What to do when `status` changes to ready or error: play a sound, show a toast,
              * or run a command in the project directory.
              */
-            notify: notifyConfigSchema.optional()
+            notify: notifyConfigSchema.optional(),
+            /**
+             * Hooks for this script. Rules do not include `match`; DevHub binds them to this name.
+             * Same events and actions as the settings document.
+             */
+            hooks: scriptHookEventMapSchema.optional()
           })
           .strict()
+          .superRefine((entry, ctx) => {
+            if (entry.command) return
+            const annotated =
+              entry.confirm !== undefined ||
+              entry.favorite !== undefined ||
+              entry.overlay !== undefined ||
+              entry.status !== undefined ||
+              entry.notify !== undefined ||
+              entry.hooks !== undefined
+            if (annotated) return
+            ctx.addIssue({
+              code: 'custom',
+              path: ['command'],
+              message: '需要 command',
+              input: entry
+            })
+          })
       )
       .default({})
   })

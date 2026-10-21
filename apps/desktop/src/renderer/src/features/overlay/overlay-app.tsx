@@ -20,6 +20,8 @@ import { useOverlayWindowDrag } from './overlay-window-drag'
 
 /** Pixels the speaker popover needs under the header. A short panel grows to this while it is open. */
 const speakerPopoverRoom = 200
+/** Pixels the script-settings dialog needs. A short panel grows to this while it is open. */
+const settingsDialogRoom = 560
 
 function useReportOverlayHeight(
   cardRef: React.RefObject<HTMLDivElement | null>,
@@ -66,9 +68,15 @@ export function OverlayApp(): React.JSX.Element {
   const [projectId, setProjectId] = useState<string | null>(() => localStorage.getItem(projectKey))
   const [runError, setRunError] = useState<{ error: Error; retry?: () => void } | null>(null)
   const [soundOpen, setSoundOpen] = useState(false)
+  const [settingsDepth, setSettingsDepth] = useState(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  useReportOverlayHeight(cardRef, contentRef, soundOpen ? speakerPopoverRoom : undefined)
+  const settingsOpen = settingsDepth > 0
+  const floor =
+    soundOpen || settingsOpen
+      ? Math.max(soundOpen ? speakerPopoverRoom : 0, settingsOpen ? settingsDialogRoom : 0)
+      : undefined
+  useReportOverlayHeight(cardRef, contentRef, floor)
   useOverlayWindowDrag(cardRef)
   const selected =
     projects.data?.find((project) => project.id === projectId) ?? projects.data?.[0] ?? null
@@ -157,6 +165,9 @@ export function OverlayApp(): React.JSX.Element {
             <OverlayBody
               projectId={selected.id}
               onError={(error, retry) => setRunError({ error, retry })}
+              onSettingsOpenChange={(open) =>
+                setSettingsDepth((depth) => Math.max(0, depth + (open ? 1 : -1)))
+              }
             />
           )}
         </div>
@@ -168,10 +179,12 @@ export function OverlayApp(): React.JSX.Element {
 
 function OverlayBody({
   projectId,
-  onError
+  onError,
+  onSettingsOpenChange
 }: {
   projectId: string
   onError: (error: Error, retry?: () => void) => void
+  onSettingsOpenChange: (open: boolean) => void
 }): React.JSX.Element {
   const scripts = useProjectScripts(projectId)
   const runs = useRuns()
@@ -203,6 +216,7 @@ function OverlayBody({
           scripts={items}
           runs={runs.data ?? []}
           onError={onError}
+          onSettingsOpenChange={onSettingsOpenChange}
         />
       )}
       {starred.length > 0 && (
@@ -211,6 +225,7 @@ function OverlayBody({
           scripts={items}
           runs={runs.data ?? []}
           onError={onError}
+          onSettingsOpenChange={onSettingsOpenChange}
         />
       )}
     </>

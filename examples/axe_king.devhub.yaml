@@ -10,7 +10,8 @@
 # webpack 预设仍是按常见日志写的。灯色不对就改对应脚本的正则。
 # 「全量dev」同时跑 panorama 的 webpack watch 和 vscripts 的 typescript-to-lua --watch，所以用两个预设。
 # overlay: true 才会出现在悬浮面板的长期运行列表。只写 status 不会自动放进去。
-# notify 是这个脚本的钩子简写（设置页 Hooks 是主配置，文件根上也可以写 hooks）。
+# notify 是这个脚本的钩子简写（设置页 Hooks 是跨项目规则，文件根上也可以写 hooks）。
+# 脚本条目里的 hooks 不写 match，只对这一条生效。主窗口和悬浮面板的齿轮会把设置写回这个文件。
 # run 在项目目录后台执行，标准输入是事件 JSON，不再另开终端。喇叭弹层里的静音和音量只影响声音。
 
 scripts:

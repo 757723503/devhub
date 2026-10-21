@@ -51,6 +51,59 @@ export const hookRuleSchema = z
   .strict()
 export type HookRule = z.infer<typeof hookRuleSchema>
 
+/** A rule stored on one script. `match` is filled in when the rule runs. */
+export const scriptHookRuleSchema = hookRuleSchema.omit({ match: true }).strict()
+export type ScriptHookRule = z.infer<typeof scriptHookRuleSchema>
+
+export const scriptHookEventMapSchema = z
+  .object({
+    onReady: z.array(scriptHookRuleSchema).max(40).optional(),
+    onError: z.array(scriptHookRuleSchema).max(40).optional(),
+    onExit: z.array(scriptHookRuleSchema).max(40).optional(),
+    onStart: z.array(scriptHookRuleSchema).max(40).optional()
+  })
+  .strict()
+export type ScriptHookEventMap = z.infer<typeof scriptHookEventMapSchema>
+
+/** JSON edited from a script's gear. The `hooks` key matches the settings document. */
+export const scriptHooksDocumentSchema = z
+  .object({
+    hooks: scriptHookEventMapSchema
+  })
+  .strict()
+export type ScriptHooksDocument = z.infer<typeof scriptHooksDocumentSchema>
+
+export const emptyScriptHooksDocument: ScriptHooksDocument = { hooks: {} }
+
+export function scriptHooksAreEmpty(doc: ScriptHooksDocument): boolean {
+  const hooks = doc.hooks
+  return (
+    (hooks.onReady?.length ?? 0) === 0 &&
+    (hooks.onError?.length ?? 0) === 0 &&
+    (hooks.onExit?.length ?? 0) === 0 &&
+    (hooks.onStart?.length ?? 0) === 0
+  )
+}
+
+const hookEventNames = [
+  'onReady',
+  'onError',
+  'onExit',
+  'onStart'
+] as const satisfies readonly HookEventName[]
+
+/** Script rules have no match of their own; they always name this script. */
+function scopeScriptHooks(map: ScriptHookEventMap | undefined, scriptName: string): HookEventMap {
+  if (!map) return {}
+  const scoped: HookEventMap = {}
+  for (const event of hookEventNames) {
+    const rules = map[event]
+    if (!rules || rules.length === 0) continue
+    scoped[event] = rules.map((rule) => ({ ...rule, match: { script: scriptName } }))
+  }
+  return scoped
+}
+
 export const hookEventMapSchema = z
   .object({
     onReady: z.array(hookRuleSchema).max(40).optional(),
@@ -139,17 +192,22 @@ function namedRules(
   return (map?.[event] ?? []).map((rule, index) => ({ id: `${prefix}:${event}:${index}`, rule }))
 }
 
-/** Global settings, then the project file, then this script's `notify` shorthand. */
+/**
+ * Global settings, then the project file's root hooks, then this script's hooks,
+ * then its `notify` shorthand.
+ */
 export function collectHookRules(input: {
   event: HookEventName
   globalHooks: HooksDocument
   projectHooks: HookEventMap
+  scriptHooks?: ScriptHookEventMap
   notify: ScriptNotify | null
   scriptName: string
 }): NamedHookRule[] {
   return [
     ...namedRules(input.globalHooks.hooks, input.event, 'global'),
     ...namedRules(input.projectHooks, input.event, 'project'),
+    ...namedRules(scopeScriptHooks(input.scriptHooks, input.scriptName), input.event, 'script'),
     ...notifyRules(input.notify, input.scriptName).filter((entry) => entry.id.endsWith(input.event))
   ]
 }

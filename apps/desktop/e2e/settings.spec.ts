@@ -1,7 +1,7 @@
 import { addProjectViaApi, packageJson, test, expect, type DevhubWindow } from './fixtures'
 
 const openSettings = async (page: import('@playwright/test').Page) => {
-  await page.getByRole('button', { name: '设置' }).click()
+  await page.getByRole('button', { name: '设置', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设置' })).toBeVisible()
 }
 

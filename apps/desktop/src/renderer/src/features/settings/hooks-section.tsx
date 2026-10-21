@@ -111,7 +111,8 @@ function HooksEditor({
           DEVHUB_EVENT、DEVHUB_PROJECT、DEVHUB_SCRIPT、DEVHUB_STATUS、DEVHUB_EXIT_CODE，默认 30
           秒后结束进程树。
           <code className="mx-1">.devhub.yaml</code>
-          根上的 hooks 会并进来。脚本上的 notify 仍可用，相当于这个脚本的就绪和出错。
+          根上的 hooks 会并进来。单个脚本的钩子在脚本行的齿轮里写，不必填 match。脚本上的 notify
+          仍可用，相当于这个脚本的就绪和出错，排在脚本钩子之后。
         </p>
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground">示例</summary>

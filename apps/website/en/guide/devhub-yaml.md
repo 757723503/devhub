@@ -102,3 +102,22 @@ notify:
 ```
 
 `sound` plays a built-in tone or a wav. `toast` is a system notification. `run` starts a background command in the project directory (the event JSON is its stdin, and it is killed after 30 seconds by default); it does not open a terminal tab. The speaker button in the title bar and on the panel opens the mute switch and the master volume. Notifications and commands still run when sound is off or the volume is 0. Open the panel from the tray or with Ctrl+Alt+D (the shortcut is in Settings). Empty space drags the panel, and releasing near a screen edge snaps to that edge.
+
+## Hooks for one script
+
+The gear on a main-window script row (left of the panel icon and the star) and on the floating panel opens settings for that script. Favorite, long-running, confirm-before-run, output status, and Hooks are written into the project's `.devhub.yaml`. The Hooks JSON matches Settings, except `match` is omitted and stored as this script's name. Order when an event fires: Settings Hooks, the file's root `hooks`, the script entry's `hooks`, then `notify`.
+
+An entry with no `command` does not become a second custom script. It annotates the npm, Maven, or Gradle script of the same name:
+
+```yaml
+scripts:
+  dev: # an npm script that already exists in package.json
+    favorite: true
+    confirm: true
+    hooks:
+      onReady:
+        - actions:
+            - type: sound
+              file: default
+            - type: toast
+```

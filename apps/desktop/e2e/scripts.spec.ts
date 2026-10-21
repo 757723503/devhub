@@ -1,4 +1,4 @@
-import { rm, writeFile } from 'fs/promises'
+import { readFile, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { addProjectViaApi, packageJson, test, expect } from './fixtures'
 
@@ -60,4 +60,29 @@ test('runs custom scripts from .devhub.yaml and points at mistakes in it', async
   await writeFile(join(dir, '.devhub.yaml'), 'scripts:\n  mock:\n    command: "oops\n')
   await page.getByRole('button', { name: '刷新' }).click()
   await expect(main.getByText(/自定义：\.devhub\.yaml 第 \d+ 行不是有效的 YAML/)).toBeVisible()
+})
+
+test('writes per-script settings into .devhub.yaml from the gear', async ({
+  launchDevhub,
+  createProject
+}) => {
+  const dir = await createProject('gear', {
+    '.devhub.yaml': ['scripts:', '  mock:', '    command: node mock.js # keep'].join('\n')
+  })
+  const { page } = await launchDevhub()
+  await addProjectViaApi(page, dir)
+
+  await page.getByRole('button', { name: 'mock 的设置' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('heading', { name: 'mock 的设置' })).toBeVisible()
+  await dialog.getByRole('checkbox', { name: '运行前确认' }).check()
+  await dialog.getByRole('button', { name: '保存' }).click()
+  await expect(dialog.getByText('已保存')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  const text = await readFile(join(dir, '.devhub.yaml'), 'utf8')
+  expect(text).toContain('confirm: true')
+  expect(text).toContain('node mock.js')
+  await page.getByRole('button', { name: '运行 mock' }).click()
+  await expect(page.getByRole('heading', { name: '确认运行「mock」？' })).toBeVisible()
 })
