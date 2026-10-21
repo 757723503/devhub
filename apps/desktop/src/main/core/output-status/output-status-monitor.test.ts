@@ -36,6 +36,10 @@ describe('createOutputStatusMonitor', () => {
     emitted.flatMap((event) =>
       event.type === 'run-output-status' ? [event.status?.state ?? null] : []
     )
+  const transitions = (): string[] =>
+    emitted.flatMap((event) =>
+      event.type === 'run-status-transition' ? [`${event.from}->${event.to}`] : []
+    )
 
   const start = (): void => {
     emitted = []
@@ -93,6 +97,7 @@ describe('createOutputStatusMonitor', () => {
 
     publish({ type: 'run-output', runId: 'r1', offset: 90, data: 'Compiling...\n' })
     expect(states()).toEqual(['building', 'ready', 'error', 'building'])
+    expect(transitions()).toEqual(['building->ready', 'ready->error', 'error->building'])
 
     publish({
       type: 'run-updated',
@@ -128,6 +133,7 @@ describe('createOutputStatusMonitor', () => {
     await pending
     await flush()
     expect(states()).toEqual(['ready'])
+    expect(transitions()).toEqual(['building->ready'])
     monitor.dispose()
   })
 

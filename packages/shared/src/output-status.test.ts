@@ -65,6 +65,14 @@ describe('lastOutputPhase', () => {
       )
     ).toBe('error')
     expect(lastOutputPhase('src/a.ts(1,1): error TS2322: bad', tstl)).toBe('error')
+    expect(
+      lastOutputPhase(
+        'File change detected. Starting incremental compilation...\nFound 0 errors. Watching for file changes.',
+        tstl
+      )
+    ).toBe('ready')
+    expect(lastOutputPhase('Found 3 errors', tstl)).toBe('error')
+    expect(lastOutputPhase('Found 0 errors. Watching for file changes.', tstl)).toBe('ready')
   })
 
   it('uses the text after a carriage return when that part matches later', () => {

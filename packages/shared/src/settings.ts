@@ -60,7 +60,9 @@ export const settingsSchema = z.object({
    */
   overlayShortcut: overlayShortcutSchema.default(defaultOverlayShortcut),
   /** Whole-panel opacity, from 30% to 100%. Default matches files written before this field. */
-  overlayOpacity: overlayOpacitySchema.default(defaultOverlayOpacity)
+  overlayOpacity: overlayOpacitySchema.default(defaultOverlayOpacity),
+  /** When true, status sounds stay quiet. Toasts and callback commands still run. */
+  notifyMuted: z.boolean().default(false)
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -71,7 +73,8 @@ export const defaultSettings: Settings = {
   closeAction: 'tray',
   customShells: [],
   overlayShortcut: defaultOverlayShortcut,
-  overlayOpacity: defaultOverlayOpacity
+  overlayOpacity: defaultOverlayOpacity,
+  notifyMuted: false
 }
 
 /**
@@ -86,7 +89,8 @@ export const settingsPatchSchema = settingsSchema
     // update would reset the shortcut or wipe custom shells.
     customShells: z.array(customShellSchema).max(10),
     overlayShortcut: overlayShortcutSchema,
-    overlayOpacity: overlayOpacitySchema
+    overlayOpacity: overlayOpacitySchema,
+    notifyMuted: z.boolean()
   })
   .partial()
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

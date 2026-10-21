@@ -5,7 +5,9 @@ import {
   defaultOverlayPosition,
   fitOverlayHeight,
   parseOverlayPlacement,
-  resizeOverlayFrame
+  positionForSnap,
+  resizeOverlayFrame,
+  snapOverlayPosition
 } from './overlay-bounds'
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 }
@@ -100,5 +102,33 @@ describe('overlay placement', () => {
     expect(parseOverlayPlacement({ x: '10', y: 20, alwaysOnTop: true })).toBeNull()
     expect(parseOverlayPlacement({ x: 10, y: 20, alwaysOnTop: true, width: 'wide' })).toBeNull()
     expect(parseOverlayPlacement(null)).toBeNull()
+  })
+
+  it('snaps to a nearby work-area edge and keeps that edge when the height changes', () => {
+    const area = { x: 0, y: 0, width: 800, height: 600 }
+    expect(snapOverlayPosition({ x: 10, y: 470 }, { width: 280, height: 120 }, area)).toEqual({
+      x: 0,
+      y: 480,
+      snap: { x: 'left', y: 'bottom' }
+    })
+    expect(snapOverlayPosition({ x: 400, y: 200 }, { width: 280, height: 120 }, area)).toEqual({
+      x: 400,
+      y: 200,
+      snap: { x: null, y: null }
+    })
+    expect(
+      positionForSnap({ x: 0, y: 480 }, { width: 280, height: 200 }, area, {
+        x: 'left',
+        y: 'bottom'
+      })
+    ).toEqual({ x: 0, y: 400 })
+    expect(
+      parseOverlayPlacement({
+        x: 0,
+        y: 10,
+        alwaysOnTop: true,
+        snap: { x: 'right', y: 'top' }
+      })?.snap
+    ).toEqual({ x: 'right', y: 'top' })
   })
 })

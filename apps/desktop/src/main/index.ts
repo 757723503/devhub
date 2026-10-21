@@ -8,6 +8,7 @@ import { registerUpdater } from './updater'
 import { createMainWindow } from './window'
 import { registerWindowControls } from './window-controls'
 import { createOverlayController, type OverlayController } from './overlay-controller'
+import { attachStatusAlerts } from './status-alert'
 import { createTray } from './tray'
 
 // Transparent frameless windows on Linux need this before the app is ready.
@@ -21,6 +22,8 @@ let isQuitting = false
 let core: DevhubCore | null = null
 // From settings; read synchronously when the window closes.
 let closeAction: 'tray' | 'quit' = 'tray'
+let notifyMuted = false
+let detachAlerts: (() => void) | null = null
 let disposed = false
 
 // Upper bound for stopping managed processes on quit; a stuck process must not block exit.
@@ -75,11 +78,20 @@ if (!app.requestSingleInstanceLock()) {
     registerUpdater(() => appCore.dispose())
     registerWindowControls()
     appCore.getSettings().then(
-      (settings) => (closeAction = settings.closeAction),
+      (settings) => {
+        closeAction = settings.closeAction
+        notifyMuted = settings.notifyMuted
+      },
       () => undefined
     )
+    detachAlerts = attachStatusAlerts({
+      subscribe: (listener) => appCore.subscribe(listener),
+      muted: () => notifyMuted
+    })
     appCore.subscribe((event) => {
-      if (event.type === 'settings-updated') closeAction = event.settings.closeAction
+      if (event.type !== 'settings-updated') return
+      closeAction = event.settings.closeAction
+      notifyMuted = event.settings.notifyMuted
     })
 
     overlay = createOverlayController({
@@ -110,6 +122,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', (event) => {
     isQuitting = true
+    detachAlerts?.()
     overlay?.dispose()
     if (!core || disposed) {
       tray?.destroy()

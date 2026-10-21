@@ -159,10 +159,28 @@
   -webkit-app-region: no-drag;
 }
 
-/* The floating panel is a transparent window; only the card paints a background. */
+/* The floating panel is a transparent window; only the card paints a background.
+   Blank space drags the window. Controls and the mini terminal opt out. */
 html[data-overlay],
 html[data-overlay] body {
   background: transparent;
+  user-select: none;
+  cursor: default;
+}
+html[data-overlay] button,
+html[data-overlay] input,
+html[data-overlay] select,
+html[data-overlay] textarea,
+html[data-overlay] a,
+html[data-overlay] pre,
+html[data-overlay] [data-no-drag],
+html[data-overlay] [data-overlay-resize],
+html[data-overlay] [role='slider'] {
+  -webkit-app-region: no-drag;
+}
+html[data-overlay] pre {
+  user-select: text;
+  cursor: text;
 }
 
 /* xterm paints its scroll viewport black by default, which shows around the padded grid.

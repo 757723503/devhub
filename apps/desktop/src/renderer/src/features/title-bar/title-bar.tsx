@@ -16,6 +16,7 @@ import {
   describeActiveGroups,
   useActiveGroups
 } from '@renderer/features/groups/use-active-groups'
+import { NotifyMuteButton } from '@renderer/features/notify/notify-mute-button'
 import { UpdateBadge } from '@renderer/features/updates/update-badge'
 import { cn } from '@renderer/lib/utils'
 import { useWindowState } from './use-window-state'
@@ -72,6 +73,7 @@ export function TitleBar({
       {!onOpenNavigation && <ActiveGroupsIndicator onSelectGroup={onSelectGroup} />}
       <div className="app-no-drag ml-auto flex items-center gap-1">
         <UpdateBadge />
+        <NotifyMuteButton size="icon-sm" />
         {shell && (
           <Button
             variant="ghost"

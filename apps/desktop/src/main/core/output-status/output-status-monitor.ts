@@ -17,6 +17,8 @@ export interface OutputStatusMonitor {
 }
 
 interface Tracker {
+  projectId: string
+  scriptId: string
   rules: OutputStatusRules | null
   tail: string
   status: RunOutputStatus | null
@@ -60,7 +62,20 @@ export function createOutputStatusMonitor({
       lastLine,
       activityAt
     }
-    if (changed) emitStatus(runId, tracker.status)
+    if (!changed) return
+    emitStatus(runId, tracker.status)
+    // Exit is not a detected output phase. The synthetic initial building state matches itself.
+    if (state === 'exited') return
+    const from = previous?.state ?? 'building'
+    if (from === state) return
+    emit({
+      type: 'run-status-transition',
+      runId,
+      projectId: tracker.projectId,
+      scriptId: tracker.scriptId,
+      from,
+      to: state
+    })
   }
 
   const drop = (runId: string): void => {
@@ -86,7 +101,14 @@ export function createOutputStatusMonitor({
   }
 
   const track = async (run: ScriptRun): Promise<void> => {
-    const tracker: Tracker = { rules: null, tail: '', status: null, exited: false }
+    const tracker: Tracker = {
+      projectId: run.projectId,
+      scriptId: run.scriptId,
+      rules: null,
+      tail: '',
+      status: null,
+      exited: false
+    }
     tracked.set(run.id, tracker)
     const rules = await resolveRules(run).catch(() => null)
     if (tracked.get(run.id) !== tracker) return

@@ -20,9 +20,12 @@ import {
   overlayMinWidth,
   overlayWidth,
   parseOverlayPlacement,
+  positionForSnap,
   resizeOverlayFrame,
+  snapOverlayPosition,
   type OverlayPlacement,
   type OverlaySizeLimits,
+  type OverlaySnapAnchor,
   type Rect
 } from './overlay-bounds'
 import { overlayShortcutLabel, syncOverlayShortcut } from './overlay-shortcut'
@@ -71,7 +74,9 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
   let contentHeight = overlayMinHeight
   let resizing = false
   let resizeStart: Rect | null = null
-  let nativeUserResize = false
+  let snap: OverlaySnapAnchor | undefined
+  /** setBounds that moves the window. The matching `moved` must not snap again. */
+  let ignoreMoves = 0
   let shortcut = defaultOverlayShortcut
   let activeShortcut: string | null = null
   let pendingShow = false
@@ -89,7 +94,8 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
       y: bounds?.y ?? 0,
       alwaysOnTop: pinned,
       ...(userWidth !== undefined ? { width: Math.round(userWidth) } : {}),
-      ...(maxHeight !== undefined ? { maxHeight: Math.round(maxHeight) } : {})
+      ...(maxHeight !== undefined ? { maxHeight: Math.round(maxHeight) } : {}),
+      ...(snap && (snap.x || snap.y) ? { snap } : {})
     }
   }
 
@@ -116,7 +122,28 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
   const rememberSize = (saved: OverlayPlacement | null): void => {
     if (saved?.width !== undefined) userWidth = saved.width
     if (saved?.maxHeight !== undefined) maxHeight = saved.maxHeight
+    if (saved?.snap) snap = saved.snap
   }
+
+  const commitBounds = (target: BrowserWindow, frame: Rect): void => {
+    const current = target.getBounds()
+    if (
+      current.x === frame.x &&
+      current.y === frame.y &&
+      current.width === frame.width &&
+      current.height === frame.height
+    ) {
+      return
+    }
+    if (current.x !== frame.x || current.y !== frame.y) ignoreMoves += 1
+    target.setBounds(frame)
+  }
+
+  const framesClose = (current: Rect, frame: Rect): boolean =>
+    Math.abs(current.x - frame.x) <= 1 &&
+    Math.abs(current.y - frame.y) <= 1 &&
+    Math.abs(current.width - frame.width) <= 1 &&
+    Math.abs(current.height - frame.height) <= 1
 
   const applyFit = (target: BrowserWindow): void => {
     if (target.isDestroyed() || resizing) return
@@ -124,16 +151,12 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     const area = workAreaFor(current)
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
     const height = fitOverlayHeight(contentHeight, maxHeight, area.height)
-    const position = clampOverlayPosition(current, { width, height }, area)
-    if (
-      current.x === position.x &&
-      current.y === position.y &&
-      current.width === width &&
-      current.height === height
-    ) {
-      return
-    }
-    target.setBounds({ ...position, width, height })
+    const anchored = positionForSnap(current, { width, height }, area, snap)
+    const position = clampOverlayPosition(anchored, { width, height }, area)
+    const frame = { ...position, width, height }
+    // A 1px gap is the border oscillating, not a real content change.
+    if (framesClose(current, frame)) return
+    commitBounds(target, frame)
   }
 
   const limitsFor = (area: Rect): OverlaySizeLimits => ({
@@ -157,12 +180,27 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     const area = saved ? workAreaFor(saved) : screen.getPrimaryDisplay().workArea
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
     const height = fitOverlayHeight(contentHeight, maxHeight, area.height)
+    const restored = saved?.snap
+      ? positionForSnap(saved, { width, height }, area, saved.snap)
+      : saved
     const position = saved
-      ? clampOverlayPosition(saved, { width, height }, area)
+      ? clampOverlayPosition(restored ?? saved, { width, height }, area)
       : defaultOverlayPosition(area, { width, height })
     const created = createOverlayWindow({ ...position, width, height, alwaysOnTop: pinned })
     window = created
     created.on('moved', () => {
+      if (ignoreMoves > 0) {
+        ignoreMoves -= 1
+        return
+      }
+      if (resizing || created.isDestroyed()) return
+      const current = created.getBounds()
+      const area = workAreaFor(current)
+      const snapped = snapOverlayPosition(current, current, area)
+      snap = snapped.snap.x || snapped.snap.y ? snapped.snap : undefined
+      if (snapped.x !== current.x || snapped.y !== current.y) {
+        commitBounds(created, { ...current, x: snapped.x, y: snapped.y })
+      }
       clearTimeout(moveTimer)
       moveTimer = setTimeout(() => save(placement()), 200)
     })
@@ -172,20 +210,10 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
       created.hide()
       notify()
     })
-    created.on('will-resize', () => {
-      nativeUserResize = true
-    })
-    created.on('resized', () => {
-      if (!nativeUserResize || resizing || created.isDestroyed()) {
-        nativeUserResize = false
-        return
-      }
-      nativeUserResize = false
-      const bounds = created.getBounds()
-      userWidth = bounds.width
-      maxHeight = bounds.height
-      save(placement())
-      applyFit(created)
+    created.on('will-resize', (event) => {
+      // The in-window handles own the size. An OS resize at the same time fights
+      // setBounds, and the border flickers until the pointer is released.
+      event.preventDefault()
     })
     created.once('ready-to-show', () => {
       if (!pendingShow || created.isDestroyed()) return
@@ -275,6 +303,8 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     getState: () => ({ alwaysOnTop: pinned }),
     setContentHeight(height) {
       contentHeight = height
+      // A manual resize is the source of truth until the pointer goes up.
+      if (resizing) return
       if (window && !window.isDestroyed()) applyFit(window)
     },
     resize(gesture) {
@@ -291,7 +321,7 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
         resizeOverlayFrame(resizeStart, gesture.dx, gesture.dy, gesture.edge, limitsFor(area)),
         area
       )
-      target.setBounds(frame)
+      commitBounds(target, frame)
       if (gesture.phase !== 'end') return
       userWidth = frame.width
       // A click on the edge must not freeze the height; only a real vertical drag sets the ceiling.

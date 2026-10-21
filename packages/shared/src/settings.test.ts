@@ -64,6 +64,14 @@ describe('custom shells in settings', () => {
     expect(settingsPatchSchema.safeParse({ overlayOpacity: 1.01 }).success).toBe(false)
   })
 
+  it('loads notify muted as off and does not inject it into an unrelated patch', () => {
+    const { notifyMuted: _ignored, ...older } = defaultSettings
+    void _ignored
+    expect(settingsSchema.parse(older).notifyMuted).toBe(false)
+    expect(settingsPatchSchema.parse({ notifyMuted: true })).toEqual({ notifyMuted: true })
+    expect(settingsPatchSchema.parse({ stopGraceSeconds: 4 })).toEqual({ stopGraceSeconds: 4 })
+  })
+
   it('accepts a custom shell as the default shell, and rejects malformed ids', () => {
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-wsl' }).success).toBe(true)
     expect(settingsPatchSchema.safeParse({ defaultShell: 'custom-../x' }).success).toBe(false)

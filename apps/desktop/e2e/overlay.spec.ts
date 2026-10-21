@@ -1,4 +1,4 @@
-import type { ElectronApplication, Page } from '@playwright/test'
+import type { ElectronApplication, Locator, Page } from '@playwright/test'
 import { addProjectViaApi, test, expect } from './fixtures'
 
 const yaml = [
@@ -106,17 +106,48 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await overlay.getByRole('button', { name: '取消' }).click()
   await expect(overlay.getByRole('heading', { name: '确认运行「云端部署」？' })).toBeHidden()
 
+  await page.screenshot({
+    path: testInfo.outputPath('title-bar-mute.png'),
+    clip: { x: 0, y: 0, width: 720, height: 48 }
+  })
   await overlay.screenshot({ path: testInfo.outputPath('overlay.png') })
+
+  await expect(overlay.getByRole('button', { name: '关闭状态提示音' })).toBeVisible()
+  const regionOf = (locator: Locator): Promise<string> =>
+    locator.evaluate((el) => {
+      const read = (node: Element | null): string => {
+        if (!node) return ''
+        const value = getComputedStyle(node).getPropertyValue('-webkit-app-region').trim()
+        if (value) return value
+        return read(node.parentElement)
+      }
+      return read(el)
+    })
+  await expect.poll(() => regionOf(overlay.getByRole('heading', { name: '长期运行' }))).toBe('drag')
+  await expect
+    .poll(() => regionOf(overlay.getByRole('button', { name: '停止 全量dev' })))
+    .toBe('no-drag')
+  await expect
+    .poll(() => overlay.locator('pre').evaluate((el) => getComputedStyle(el).userSelect))
+    .toBe('text')
 
   const beforeResize = await overlayBounds(app)
   const edge = overlay.locator('[data-overlay-resize="e"]')
   const box = await edge.boundingBox()
   if (!box || !beforeResize) throw new Error('overlay resize handle is missing')
+  const widths: number[] = []
   await overlay.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await overlay.mouse.down()
-  // Drag inward so the pointer stays inside the window; the east edge still tracks it.
-  await overlay.mouse.move(box.x + box.width / 2 - 70, box.y + box.height / 2, { steps: 10 })
+  // Drag inward in steps and sample the width. A flicker would jump the width back up.
+  for (let step = 1; step <= 8; step++) {
+    await overlay.mouse.move(box.x + box.width / 2 - step * 9, box.y + box.height / 2)
+    const bounds = await overlayBounds(app)
+    if (bounds) widths.push(bounds.width)
+  }
   await overlay.mouse.up()
+  for (let i = 1; i < widths.length; i++) {
+    expect(widths[i] ?? 0).toBeLessThanOrEqual((widths[i - 1] ?? 0) + 2)
+  }
   await expect
     .poll(async () => (await overlayBounds(app))?.width ?? 999)
     .toBeLessThan(beforeResize.width - 40)

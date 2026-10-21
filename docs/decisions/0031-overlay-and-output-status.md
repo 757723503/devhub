@@ -15,6 +15,8 @@
 - `confirm: true` 时，点击运行先弹出确认。批量任务直接调 core，不经过这个对话框。
 - 收藏：`favorite: true` 写在项目文件里，作为默认；本机的星标存在 `favorites.json`，有记录就以记录为准（因此可以取消文件里声明的收藏，也可以给 npm 脚本加星）。主窗口可以只看收藏。悬浮面板的快捷按钮就是收藏。变更用 `favorites-updated` 推送。`setScriptFavorite` 的远程级别是 `control`（不新增可执行内容）。
 - 长期运行列表另有一个开关，不跟收藏混用。`overlay: true` 是文件里的默认；本机选择在 `overlay-scripts.json`，有记录就以记录为准。主窗口脚本行上的面板图标改这一项。变更用 `overlay-scripts-updated` 推送。`setOverlayScript` 的远程级别同样是 `control`。声明了 `status` 但没有被选进列表的脚本，仍会在主窗口显示灯色，只是不占面板上的一行。
+- 检测到的状态真正变化时发 `run-status-transition`（从哪到哪）。一开始写入的「构建中」不算变化，进程退出不算，同一种状态反复匹配也不发。`.devhub.yaml` 的 `notify` 只对就绪和出错做动作：`sound`（`default`、`error` 或一个 `.wav` 路径）、`toast`、`run`（在项目目录另开终端，不写进运行历史）。`firstBuild: false` 跳过这次启动后的第一次就绪。`interval` 是同一脚本、同一状态两次动作之间的最短秒数，默认 15，`0` 表示不限制；就绪和出错各算各的。静音是设置项 `notifyMuted`，标题栏和悬浮面板上的按钮切换它，只影响声音。系统通知和播放 wav 在主进程，core 不引用 Electron。不新增依赖。
+- 悬浮面板的空白、分区标题和间隙都可以拖动窗口（`-webkit-app-region: drag`），文字默认不可选。按钮、输入、开关、滑块和可点击的脚本行是 `no-drag`。只有展开后的终端 `<pre>` 可以选中复制。拖边缘时渲染进程暂停上报内容高度，主进程在手势结束前也不按内容改大小，并取消系统自己的缩放，避免和把手的 `setBounds` 抢尺寸。松手后若指针落在工作区边缘 16 像素内，窗口贴上那条边；贴上的边记在 `overlay.json`，之后高度变化仍贴着它。缩放过程中不贴边。
 
 ## 备选与理由
 

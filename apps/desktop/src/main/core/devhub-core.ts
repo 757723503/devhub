@@ -37,6 +37,7 @@ import {
   emptyFavoritesFile,
   favoritesFileSchema
 } from './favorites/favorite-service'
+import { createStatusNotifier } from './notify/status-notifier'
 import { createOutputStatusMonitor } from './output-status/output-status-monitor'
 import {
   createOverlayScriptService,
@@ -280,6 +281,24 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     emit: (event) => events.emit(event)
   })
 
+  const statusNotifier = createStatusNotifier({
+    subscribe: (listener) => events.subscribe(listener),
+    resolveScript: async (projectId, scriptId) => {
+      try {
+        const found = await scripts.find(projectId, scriptId)
+        return {
+          name: found.script.name,
+          projectPath: found.project.path,
+          ...(found.script.notify ? { notify: found.script.notify } : {})
+        }
+      } catch {
+        return null
+      }
+    },
+    startCommand: (projectId, command, title) => runs.startCommand(projectId, command, title),
+    emit: (event) => events.emit(event)
+  })
+
   const health = createHealthMonitor({
     subscribe: (listener) => events.subscribe(listener),
     resolveTarget: async (run) =>
@@ -378,6 +397,7 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
       // Cancel sequences first so no step starts while the runs are being stopped.
       groupRunner.dispose()
       outputStatus.dispose()
+      statusNotifier.dispose()
       health.dispose()
       await runs.dispose()
       // The runs just stopped are recorded as they exit; let those writes finish.

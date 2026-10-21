@@ -141,6 +141,7 @@ function OverlayRunRow({
   return (
     <li className="rounded-lg bg-background/50">
       <div
+        data-no-drag
         className="flex cursor-pointer items-start gap-1.5 px-1.5 py-1"
         onClick={onOpen}
         onDoubleClick={focusMain}

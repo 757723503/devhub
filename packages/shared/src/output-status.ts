@@ -20,11 +20,12 @@ export const outputStatusPresets: Record<
     ready: 'compiled successfully|Compiled successfully|compiled with \\d+ warnings?(?:\\s|$)',
     error: 'compiled with [1-9]\\d* errors?|Failed to compile|ERROR in '
   },
-  // tsc --watch and typescript-to-lua, which prints the same watch host lines, often after [tstl].
+  // tsc --watch and typescript-to-lua. "Starting incremental compilation..." is tsc's
+  // rebuild line; "Found N errors" counts even without the watching suffix.
   tstl: {
-    busy: 'File change detected\\. Starting compilation|Starting compilation in watch mode',
+    busy: 'File change detected\\. Starting (?:incremental )?compilation|Starting compilation in watch mode',
     ready: 'Found 0 errors\\. Watching for file changes',
-    error: 'Found [1-9]\\d* errors?\\. Watching for file changes|error TS\\d+'
+    error: 'Found [1-9]\\d* errors?|error TS\\d+'
   }
 }
 

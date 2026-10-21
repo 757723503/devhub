@@ -84,4 +84,21 @@ scripts:
 
 `confirm: true` asks before a click in the script list or the panel. Batch tasks do not show that dialog.
 
-`status` is for watch processes that have no fixed port. After ANSI codes are stripped, the **latest** match in recent output sets the light (building / ready / error), so a failed compile followed by a successful one returns to ready. The `webpack` and `tstl` presets (tsc --watch / typescript-to-lua) follow those tools' usual messages; replace them with your own regexes when the real log differs. Open the panel from the tray or with Ctrl+Alt+D (the shortcut is in Settings).
+`status` is for watch processes that have no fixed port. After ANSI codes are stripped, the **latest** match in recent output sets the light (building / ready / error), so a failed compile followed by a successful one returns to ready. The `webpack` and `tstl` presets (tsc --watch / typescript-to-lua) follow those tools' usual messages. `tstl` treats `Found 0 errors. Watching for file changes.` as ready, `Starting incremental compilation...` and `Starting compilation in watch mode...` as building, and `Found N errors` (N > 0) as error. Replace the patterns when the real log differs.
+
+A real status change can also notify (a repeated match of the same state does not):
+
+```yaml
+notify:
+  onReady:
+    sound: default # or error, or sounds/ok.wav inside the project
+    toast: true
+    # run: yarn launch axe_king s1-1
+  onError:
+    sound: error
+    toast: true
+  firstBuild: true # false skips the first ready after this start
+  interval: 15 # seconds before the same phase notifies again; 0 disables the wait
+```
+
+`sound` plays a built-in tone or a wav. `toast` is a system notification. `run` starts a command in the project directory as its own terminal. The speaker button in the title bar and on the panel mutes only the sound. Open the panel from the tray or with Ctrl+Alt+D (the shortcut is in Settings). Empty space drags the panel, and releasing near a screen edge snaps to that edge.

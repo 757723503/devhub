@@ -179,6 +179,29 @@ describe('createRunManager', () => {
     expect(killer.interrupt).not.toHaveBeenCalled()
   })
 
+  it('runs a notification command in the project directory and restarts it without a script', async () => {
+    const manager = makeManager()
+    await manager.start('p1', 'npm:dev')
+    const run = await manager.startCommand('p1', 'yarn launch axe_king s1-1', '通知 yarn launch')
+    expect(run.kind).toBe('script')
+    if (run.kind !== 'script') return
+    expect(run.scriptId.startsWith('notify:')).toBe(true)
+    expect(run.command).toBe('yarn launch axe_king s1-1')
+    expect(spawned[1]).toMatchObject({ cwd: '/repo', args: ['-lc', 'yarn launch axe_king s1-1'] })
+    expect(manager.list()).toHaveLength(2)
+
+    const restarting = manager.restart(run.id)
+    ptys[1]?.emitExit(0)
+    const again = await restarting
+    expect(again.kind).toBe('script')
+    if (again.kind !== 'script') return
+    expect(again.scriptId).toBe(run.scriptId)
+    expect(again.command).toBe(run.command)
+    expect(
+      manager.list().some((item) => item.kind === 'script' && item.scriptId === 'npm:dev')
+    ).toBe(true)
+  })
+
   it('restarts by stopping and starting the same script', async () => {
     const manager = makeManager()
     const run = await manager.start('p1', 'npm:dev')

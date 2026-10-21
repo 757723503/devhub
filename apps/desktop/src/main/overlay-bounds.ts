@@ -8,6 +8,13 @@ export const overlayMaxWidth = 520
 /** Header row. The window never collapses past this, even with nothing listed. */
 export const overlayMinHeight = 48
 export const overlayMargin = 12
+/** How close a drag must end to a work-area edge before the panel sticks to it. */
+export const overlaySnapDistance = 16
+
+export interface OverlaySnapAnchor {
+  x: 'left' | 'right' | null
+  y: 'top' | 'bottom' | null
+}
 
 export interface Size {
   width: number
@@ -32,6 +39,8 @@ export interface OverlayPlacement {
    * The visible height is the content until it passes this, then the body scrolls.
    */
   maxHeight?: number
+  /** Edge the panel was snapped to. Height changes keep a bottom or top snap. */
+  snap?: OverlaySnapAnchor
 }
 
 const placementSchema = z.object({
@@ -39,7 +48,13 @@ const placementSchema = z.object({
   y: z.number().finite(),
   alwaysOnTop: z.boolean(),
   width: z.number().finite().optional(),
-  maxHeight: z.number().finite().optional()
+  maxHeight: z.number().finite().optional(),
+  snap: z
+    .object({
+      x: z.enum(['left', 'right']).nullable(),
+      y: z.enum(['top', 'bottom']).nullable()
+    })
+    .optional()
 })
 
 export function parseOverlayPlacement(raw: unknown): OverlayPlacement | null {
@@ -128,6 +143,57 @@ export function clampOverlayPosition(
   const maxX = Math.max(minX, workArea.x + workArea.width - size.width)
   const maxY = Math.max(minY, workArea.y + workArea.height - size.height)
   return { x: clamp(position.x, minX, maxX), y: clamp(position.y, minY, maxY) }
+}
+
+/**
+ * Sticks a position to a work-area edge when it lands within `distance` pixels.
+ * A drag that ends farther away clears that axis.
+ */
+export function snapOverlayPosition(
+  position: { x: number; y: number },
+  size: Size,
+  workArea: Rect,
+  distance = overlaySnapDistance
+): { x: number; y: number; snap: OverlaySnapAnchor } {
+  let x = position.x
+  let y = position.y
+  const snap: OverlaySnapAnchor = { x: null, y: null }
+  const left = workArea.x
+  const right = workArea.x + workArea.width - size.width
+  const top = workArea.y
+  const bottom = workArea.y + workArea.height - size.height
+  if (Math.abs(x - left) <= distance) {
+    x = left
+    snap.x = 'left'
+  } else if (Math.abs(x - right) <= distance) {
+    x = right
+    snap.x = 'right'
+  }
+  if (Math.abs(y - top) <= distance) {
+    y = top
+    snap.y = 'top'
+  } else if (Math.abs(y - bottom) <= distance) {
+    y = bottom
+    snap.y = 'bottom'
+  }
+  return { x, y, snap }
+}
+
+/** Keeps a snapped edge when the window's size or the display changes. */
+export function positionForSnap(
+  position: { x: number; y: number },
+  size: Size,
+  workArea: Rect,
+  snap: OverlaySnapAnchor | undefined
+): { x: number; y: number } {
+  if (!snap) return { x: position.x, y: position.y }
+  let x = position.x
+  let y = position.y
+  if (snap.x === 'left') x = workArea.x
+  if (snap.x === 'right') x = workArea.x + workArea.width - size.width
+  if (snap.y === 'top') y = workArea.y
+  if (snap.y === 'bottom') y = workArea.y + workArea.height - size.height
+  return { x, y }
 }
 
 /** Top-right of the work area, inset by `overlayMargin`. */

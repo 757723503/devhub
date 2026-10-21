@@ -132,6 +132,13 @@ scripts:
     status:
       busy: Compiling
       ready: ready in
+    notify:
+      onReady:
+        sound: default
+        toast: true
+      onError:
+        sound: error
+        toast: true
 `)
     const scripts = await detect()
     expect(scripts.find((script) => script.name === 'deploy')).toMatchObject({ confirm: true })
@@ -142,6 +149,12 @@ scripts:
     expect(scripts.find((script) => script.name === 'watch')?.outputStatus).toEqual({
       busy: 'Compiling',
       ready: 'ready in'
+    })
+    expect(scripts.find((script) => script.name === 'watch')?.notify).toEqual({
+      onReady: { sound: 'default', toast: true },
+      onError: { sound: 'error', toast: true },
+      firstBuild: true,
+      intervalSeconds: 15
     })
   })
 

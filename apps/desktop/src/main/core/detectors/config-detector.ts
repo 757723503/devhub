@@ -1,6 +1,11 @@
 import { isAbsolute, join, relative, resolve } from 'path'
 import { parse, YAMLParseError } from 'yaml'
-import { projectConfigSchema, resolveOutputStatus, type Script } from '@devhub/shared'
+import {
+  projectConfigSchema,
+  resolveNotify,
+  resolveOutputStatus,
+  type Script
+} from '@devhub/shared'
 import { inferNpmPorts } from '../ports/infer-ports'
 import { readOptionalFile } from './fs-utils'
 import type { ScriptDetector } from './types'
@@ -72,6 +77,7 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
           throw new Error(`${fileName} 中脚本 ${name} 设置了 health，但不知道端口：请同时填写 port`)
         }
         const outputStatus = entry.status ? resolveOutputStatus(entry.status) : undefined
+        const notify = entry.notify ? resolveNotify(entry.notify) : undefined
         scripts.push({
           id: `custom:${name}`,
           name,
@@ -84,7 +90,8 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
           ...(entry.confirm ? { confirm: true } : {}),
           ...(entry.favorite ? { favorite: true } : {}),
           ...(entry.overlay ? { overlay: true } : {}),
-          ...(outputStatus ? { outputStatus } : {})
+          ...(outputStatus ? { outputStatus } : {}),
+          ...(notify ? { notify } : {})
         })
       }
       return scripts

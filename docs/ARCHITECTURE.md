@@ -164,7 +164,7 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 ## 事件推送（见 ADR 0004）
 
 - `DevhubEvents.subscribe` 独立于 `DevhubApi`：请求-响应走自动映射的 IPC，推送走 `devhubEventChannel`（主进程 `webContents.send` → preload → `@renderer/api` 的 `events`）。远程端改用 SSE（`GET /api/v1/events`，ADR 0022）。
-- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`run-output-status`（按输出匹配的构建状态，ADR 0031）、`favorites-updated`、`overlay-scripts-updated`（悬浮面板长期运行列表，ADR 0031）、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
+- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`run-output-status`（按输出匹配的构建状态，ADR 0031）、`run-status-transition`（输出状态真正变化，ADR 0031）、`status-notify`（声音与系统通知，由主进程消费，ADR 0031）、`favorites-updated`、`overlay-scripts-updated`（悬浮面板长期运行列表，ADR 0031）、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
 - 设置分两处（ADR 0007）：影响 core 行为的存 `settings.json`；纯显示偏好（主题、风格、终端字号等）存 renderer 的 localStorage（`lib/appearance.ts`、`terminal-prefs.ts`）。设计风格（ADR 0019）是 `<html data-style>` 下对语义 CSS 变量的覆盖（`assets/styles/`），组件只用语义 token（`bg-primary`，运行状态用 `success` / `warning` / `info`），不写死颜色，新增风格不改组件。renderer 用事件直接更新 TanStack Query 缓存（`useRunEventsSync`，在 App 挂载一次）。
 - 终端：先订阅再取 `getRunOutput` 快照，用 shared 的 `OutputCursor` 去重拼接；core 中输出按 16 ms 合并后推送。
 - renderer 的 `terminal-sessions.ts` 为每个运行保留一个 xterm 实例（切换标签只移动 DOM 节点，关闭标签时释放）；只有可见终端使用 WebGL。快捷键在 `terminal-keys.ts`，外观偏好（主题、字号、渲染方式）在 `terminal-prefs.ts`。
@@ -190,3 +190,5 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 
 - 悬浮面板是主进程里的第二个 BrowserWindow（`overlay-controller.ts` / `overlay-window.ts`），不进入 `core/`。透明、无边框、不进任务栏；默认宽 280，高度贴合内容。空的长期运行或收藏区块不占位，两个都空时只留一行说明。拖卡片边缘改大小（透明窗口没有系统缩放边，把手在卡片内侧）：宽度记在 `overlay.json`，上下拖过的高度是上限，内容更高时在里面滚动，更矮时窗口再缩回去。位置同样存在 `overlay.json`，显示时夹在工作区内。窗口标题栏（设置按钮旁）、托盘项、全局快捷键（默认 Ctrl+Alt+D）和 `toggleOverlay` 开关它。不透明度是设置项 `overlayOpacity`（30%–100%）。置顶、隐藏、打开主窗口、聚焦某次运行、内容高度和拖拽尺寸走 ShellApi。renderer 用 `?view=overlay` 画同一套数据。
 - `.devhub.yaml` 可为脚本声明 `status`（预设 `webpack` / `tstl`，或 `busy` / `ready` / `error` 正则）、`confirm`、`favorite`、`overlay`。`overlay: true` 才进入悬浮面板的长期运行列表；只写 `status` 不会自动放进去。本机选择在 `overlay-scripts.json`，覆盖文件里的 `overlay`，变更走 `overlay-scripts-updated`。`output-status-monitor` 只听事件总线，在去掉 ANSI 的最近输出里取最后一次匹配，用 `run-output-status` 推送；不改 RunManager。本机收藏在 `favorites.json`，覆盖文件里的 `favorite`，变更走 `favorites-updated`。悬浮面板底部按钮仍是收藏。
+- 状态真正变化时另发 `run-status-transition`（不含一开始的「构建中」，也不含进程退出，同一状态重复匹配不发）。脚本可写 `notify`（`onReady` / `onError` 的 `sound`、`toast`、`run`，以及 `firstBuild`、`interval` 秒）。动作有最短间隔，默认 15 秒，就绪和出错分开计。`run` 在项目目录另开一个终端，脚本 id 以 `notify:` 开头，不进运行历史。声音和系统通知由主进程处理；`notifyMuted` 只关掉声音。标题栏和悬浮面板各有一个静音按钮。
+- 悬浮面板里除了按钮、输入、开关、滑块和展开的终端输出，空白处都可以拖动窗口。拖边缘改大小时暂停按内容回写高度，避免和 `setBounds` 来回抢。松手后若离屏幕工作区边缘不超过 16 像素，就贴到那条边，并在之后的高度变化里保持这一边。

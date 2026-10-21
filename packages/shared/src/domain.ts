@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { healthPathSchema } from './health'
+import { notifyConfigSchema, scriptNotifySchema } from './notify'
 import { outputStatusConfigSchema } from './output-status'
 
 /** Where a script was discovered. Each source maps to one detector in the desktop main process. */
@@ -28,6 +29,8 @@ export const scriptSchema = z.object({
    * overlay-scripts.json overrides this. Declaring `status` does not list the script by itself.
    */
   overlay: z.boolean().optional(),
+  /** Sound, toast, and callback when output status changes. Present when yaml declared `notify`. */
+  notify: scriptNotifySchema.optional(),
   /** Patterns matched against live output. Present only when the script declared `status`. */
   outputStatus: z
     .object({
@@ -155,7 +158,12 @@ export const projectConfigSchema = z
              * Output lines that move a long-running script between building, ready and error.
              * A preset name (`webpack`, `tstl`), a list of them, or `{ busy, ready, error }` regexes.
              */
-            status: outputStatusConfigSchema.optional()
+            status: outputStatusConfigSchema.optional(),
+            /**
+             * What to do when `status` changes to ready or error: play a sound, show a toast,
+             * or run a command in the project directory.
+             */
+            notify: notifyConfigSchema.optional()
           })
           .strict()
       )

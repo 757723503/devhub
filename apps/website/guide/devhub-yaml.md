@@ -84,4 +84,21 @@ scripts:
 
 `confirm: true` 时，从脚本列表或悬浮面板点击运行会先询问。批量任务不弹这个确认框。
 
-`status` 给没有固定端口的 watch 用：DevHub 去掉 ANSI 后，用最近输出里**最后一次**匹配决定灯的颜色（构建中 / 就绪 / 出错），所以一次编译失败后再次编译成功，灯会回到就绪。预设 `webpack` 与 `tstl`（tsc --watch / typescript-to-lua）按这些工具的常见输出编写，对不上真实日志时改成自己的正则。悬浮面板用托盘或 Ctrl+Alt+D 打开（可在设置里改快捷键）。
+`status` 给没有固定端口的 watch 用：DevHub 去掉 ANSI 后，用最近输出里**最后一次**匹配决定灯的颜色（构建中 / 就绪 / 出错），所以一次编译失败后再次编译成功，灯会回到就绪。预设 `webpack` 与 `tstl`（tsc --watch / typescript-to-lua）按这些工具的常见输出编写。`tstl` 把 `Found 0 errors. Watching for file changes.` 当作就绪，把 `Starting incremental compilation...` 和 `Starting compilation in watch mode...` 当作构建中，把 `Found N errors`（N > 0）当作出错。对不上真实日志时改成自己的正则。
+
+状态**真正变化**时可以再做一件事（同一种状态反复出现不会重复触发）：
+
+```yaml
+notify:
+  onReady:
+    sound: default # 或 error，或项目里的 sounds/ok.wav
+    toast: true
+    # run: yarn launch axe_king s1-1
+  onError:
+    sound: error
+    toast: true
+  firstBuild: true # false 则跳过这次启动后的第一次就绪
+  interval: 15 # 同一状态至少隔这么多秒再提示一次，0 为不限制
+```
+
+`sound` 播放内置提示音或一个 wav。`toast` 是系统通知。`run` 在项目目录另开一个终端执行。标题栏和悬浮面板上的喇叭按钮只关闭声音，通知和命令仍会执行。悬浮面板用托盘或 Ctrl+Alt+D 打开（可在设置里改快捷键）。空白处可以拖动面板，拖到屏幕边缘会贴边。

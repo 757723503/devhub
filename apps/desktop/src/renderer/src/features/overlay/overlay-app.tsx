@@ -3,6 +3,7 @@ import { Pin, SquareArrowOutUpRight, TriangleAlert, X } from 'lucide-react'
 import { defaultOverlayOpacity, isScriptFavorite, isScriptOnOverlay } from '@devhub/shared'
 import { shell } from '@renderer/api'
 import { Button } from '@renderer/components/ui/button'
+import { NotifyMuteButton } from '@renderer/features/notify/notify-mute-button'
 import { useProjects } from '@renderer/features/projects/use-projects'
 import { useSettings, useSettingsSync } from '@renderer/features/settings/use-settings'
 import { useRuns } from '@renderer/features/runs/use-runs'
@@ -12,6 +13,7 @@ import { useOverlayScripts } from '@renderer/features/scripts/use-overlay-script
 import { useProjectScripts } from '@renderer/features/scripts/use-scripts'
 import { useWorkspaceEventsSync } from '@renderer/features/workspaces/use-workspaces'
 import { OverlayFavorites } from './overlay-favorites'
+import { overlayFitSuspended, onOverlayFitResumed } from './overlay-fit-pause'
 import { OverlayOpacityButton } from './overlay-opacity'
 import { OverlayResizeHandles } from './overlay-resize-handles'
 import { OverlayRuns } from './overlay-runs'
@@ -30,8 +32,10 @@ function useReportOverlayHeight(
     if (!content || !card || !shell) return
     let frame = 0
     const report = (): void => {
+      if (overlayFitSuspended()) return
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
+        if (overlayFitSuspended()) return
         const border = card.offsetHeight - card.clientHeight
         const next = Math.max(Math.ceil(content.offsetHeight + border), minimum)
         if (next > 0) void shell?.setOverlayContentHeight(next)
@@ -39,9 +43,11 @@ function useReportOverlayHeight(
     }
     const observer = new ResizeObserver(report)
     observer.observe(content)
+    const resume = onOverlayFitResumed(report)
     report()
     return () => {
       observer.disconnect()
+      resume()
       cancelAnimationFrame(frame)
     }
   }, [cardRef, contentRef, minimum])
@@ -84,7 +90,7 @@ export function OverlayApp(): React.JSX.Element {
   return (
     <div
       ref={cardRef}
-      className="relative flex h-dvh flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
+      className="app-drag relative flex h-dvh flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-foreground/15 bg-background/85 text-foreground shadow-none backdrop-blur-md"
       style={{ opacity: panel.opacity }}
     >
       <div ref={contentRef}>
@@ -104,6 +110,7 @@ export function OverlayApp(): React.JSX.Element {
               </option>
             ))}
           </select>
+          <NotifyMuteButton size="icon-xs" />
           <OverlayOpacityButton
             opacity={panel.opacity}
             onPreview={panel.preview}

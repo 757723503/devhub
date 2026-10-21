@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import type { OverlayResizeEdge, OverlayResizeGesture } from '@devhub/shared'
 import { shell } from '@renderer/api'
 import { cn } from '@renderer/lib/utils'
+import { resumeOverlayFit, suspendOverlayFit } from './overlay-fit-pause'
 
 const handles: { edge: OverlayResizeEdge; className: string }[] = [
   { edge: 'n', className: 'top-0 right-3 left-3 h-1.5 cursor-ns-resize' },
@@ -39,9 +40,22 @@ function ResizeHandle({
   const origin = useRef<{ x: number; y: number } | null>(null)
   const frame = useRef(0)
   const pending = useRef<{ dx: number; dy: number } | null>(null)
+  const held = useRef(false)
 
   const send = (gesture: OverlayResizeGesture): void => {
     void shell?.resizeOverlay(gesture)
+  }
+
+  const finish = (dx: number, dy: number): void => {
+    if (!held.current) return
+    held.current = false
+    cancelAnimationFrame(frame.current)
+    frame.current = 0
+    origin.current = null
+    pending.current = null
+    void Promise.resolve(shell?.resizeOverlay({ dx, dy, edge, phase: 'end' })).finally(() =>
+      resumeOverlayFit()
+    )
   }
 
   const flush = (): void => {
@@ -61,6 +75,9 @@ function ResizeHandle({
         event.currentTarget.setPointerCapture(event.pointerId)
         origin.current = { x: event.screenX, y: event.screenY }
         pending.current = null
+        held.current = true
+        // Before the start IPC, so a content-height report cannot land mid-drag.
+        suspendOverlayFit()
         send({ dx: 0, dy: 0, edge, phase: 'start' })
       }}
       onPointerMove={(event) => {
@@ -74,13 +91,11 @@ function ResizeHandle({
       }}
       onPointerUp={(event) => {
         if (!origin.current) return
-        cancelAnimationFrame(frame.current)
-        frame.current = 0
-        const dx = event.screenX - origin.current.x
-        const dy = event.screenY - origin.current.y
-        origin.current = null
-        pending.current = null
-        send({ dx, dy, edge, phase: 'end' })
+        finish(event.screenX - origin.current.x, event.screenY - origin.current.y)
+      }}
+      onPointerCancel={(event) => {
+        if (!origin.current) return
+        finish(event.screenX - origin.current.x, event.screenY - origin.current.y)
       }}
     />
   )
