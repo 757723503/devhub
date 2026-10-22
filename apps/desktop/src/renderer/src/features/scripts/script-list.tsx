@@ -1,6 +1,12 @@
 import { useState } from 'react'
-import { FolderX, TriangleAlert, X } from 'lucide-react'
-import type { Project, Run, Script, ScriptSource } from '@devhub/shared'
+import { FolderX, Star, TriangleAlert, X } from 'lucide-react'
+import {
+  isScriptFavorite,
+  type Project,
+  type Run,
+  type Script,
+  type ScriptSource
+} from '@devhub/shared'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
@@ -9,8 +15,15 @@ import { useActiveGroups, type ActiveGroupView } from '@renderer/features/groups
 import { RunControls } from '@renderer/features/runs/run-controls'
 import { RunHistoryButton } from '@renderer/features/runs/run-history-button'
 import { useRuns } from '@renderer/features/runs/use-runs'
+import { ScriptStatusLight } from '@renderer/features/runs/status-light'
+import { FavoriteButton } from './favorite-button'
+import { OverlayListButton } from './overlay-list-button'
+import { ScriptSettingsButton } from './script-settings-dialog'
 import { sourceLabels } from './source-labels'
+import { useScriptFavorites } from './use-favorites'
 import { useProjectScripts } from './use-scripts'
+
+const favoritesOnlyKey = 'devhub.scripts.favoritesOnly'
 
 interface ScriptListProps {
   project: Project
@@ -21,7 +34,11 @@ interface ScriptListProps {
 export function ScriptList({ project, onRunStarted }: ScriptListProps): React.JSX.Element {
   const scripts = useProjectScripts(project.id)
   const runs = useRuns()
+  const favorites = useScriptFavorites()
   const activeGroups = useActiveGroups()
+  const [favoritesOnly, setFavoritesOnly] = useState(
+    () => localStorage.getItem(favoritesOnlyKey) === '1'
+  )
   // `retry` is set for a taken port: the user may start the script anyway.
   const [runError, setRunError] = useState<{ error: Error; retry?: () => void } | null>(null)
 
@@ -58,8 +75,29 @@ export function ScriptList({ project, onRunStarted }: ScriptListProps): React.JS
     )
   }
 
+  const shown = favoritesOnly
+    ? items.filter((script) => isScriptFavorite(script, favorites.data ?? [], project.id))
+    : items
+
   return (
     <div className="flex flex-col gap-4">
+      {items.length > 0 && (
+        <div className="flex items-center justify-end">
+          <Button
+            variant={favoritesOnly ? 'secondary' : 'outline'}
+            size="sm"
+            aria-pressed={favoritesOnly}
+            onClick={() => {
+              const next = !favoritesOnly
+              setFavoritesOnly(next)
+              localStorage.setItem(favoritesOnlyKey, next ? '1' : '0')
+            }}
+          >
+            <Star data-icon="inline-start" className={favoritesOnly ? 'fill-current' : ''} />
+            只看收藏
+          </Button>
+        </div>
+      )}
       {runError && (
         <Alert variant="destructive">
           <TriangleAlert />
@@ -117,7 +155,13 @@ export function ScriptList({ project, onRunStarted }: ScriptListProps): React.JS
         </p>
       )}
 
-      {groupBySource(items).map(([source, group]) => (
+      {shown.length === 0 && items.length > 0 && favoritesOnly && (
+        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          还没有收藏。点脚本旁边的星标，或在 .devhub.yaml 里写 favorite: true。
+        </p>
+      )}
+
+      {groupBySource(shown).map(([source, group]) => (
         <ScriptGroup
           key={source}
           projectId={project.id}
@@ -181,6 +225,7 @@ function ScriptGroup({
               {/* On phones the name goes above the command, leaving the row's width to the controls. */}
               <div className="flex min-w-0 flex-1 flex-col md:flex-row md:items-center md:gap-4">
                 <span className="flex min-w-0 items-center gap-1.5 md:w-40 md:shrink-0">
+                  {script.outputStatus && <ScriptStatusLight run={run} />}
                   <span className="truncate font-medium" title={script.name}>
                     {script.name}
                   </span>
@@ -222,6 +267,9 @@ function ScriptGroup({
                   )}
                 </div>
               </div>
+              <ScriptSettingsButton projectId={projectId} script={script} />
+              <OverlayListButton projectId={projectId} script={script} />
+              <FavoriteButton projectId={projectId} script={script} />
               <RunHistoryButton
                 projectId={projectId}
                 scriptId={script.id}
@@ -232,6 +280,7 @@ function ScriptGroup({
                 scriptId={script.id}
                 scriptName={script.name}
                 run={run}
+                needsConfirm={script.confirm === true}
                 onError={onRunError}
                 onStarted={onRunStarted}
               />
@@ -260,6 +309,11 @@ const configExample = `scripts:
     description: 后端（server 模块）
     port: 8081
     health: /actuator/health  # 返回 2xx 才算就绪；不写则只检查端口
+    favorite: true
+  watch:
+    command: pnpm dev
+    overlay: true     # 出现在悬浮面板的长期运行列表；可在界面上关掉
+    status: webpack   # 或 tstl；也可写 busy/ready/error 正则。匹配输出，不看端口
   compose:
     command: docker compose up
     cwd: deploy
@@ -279,7 +333,8 @@ function ConfigHint(): React.JSX.Element {
         {configExample}
       </pre>
       <p className="mt-1">
-        cwd 相对于项目目录；port 省略时会从命令推断。保存后点「刷新」或切回 DevHub 即生效。
+        cwd 相对于项目目录；port 省略时会从命令推断。保存后点「刷新」或切回 DevHub
+        即生效。脚本行上的齿轮可以把收藏、长期运行、运行前确认、输出状态和钩子写进这个文件。
       </p>
     </details>
   )

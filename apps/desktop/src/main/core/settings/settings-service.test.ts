@@ -41,6 +41,17 @@ describe('createSettingsService', () => {
     expect(events).toEqual([{ type: 'settings-updated', settings: updated }])
   })
 
+  it('keeps a custom overlay shortcut when another setting changes', async () => {
+    const { service } = makeService()
+    await service.update({ overlayShortcut: 'Ctrl+Alt+F', overlayOpacity: 0.55 })
+    await service.update({ stopGraceSeconds: 9 })
+    await expect(service.get()).resolves.toMatchObject({
+      overlayShortcut: 'Ctrl+Alt+F',
+      overlayOpacity: 0.55,
+      stopGraceSeconds: 9
+    })
+  })
+
   it('merges editor paths one at a time and clears them with null', async () => {
     const { service } = makeService()
     await service.update({ editorPaths: { idea: ideaPath } })

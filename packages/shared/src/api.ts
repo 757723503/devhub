@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type {
   EditorId,
   EditorInfo,
@@ -12,10 +13,15 @@ import type {
   SystemTerminalInfo
 } from './domain'
 import type { RunOutputSnapshot } from './events'
+import type { ScriptFavorite } from './favorites'
+import type { ScriptOverlay } from './overlay-scripts'
 import type { Group, GroupInput, GroupRunState } from './groups'
 import type { RunHealth } from './health'
 import type { RunHistoryOutput, RunRecord } from './history'
+import type { RunOutputStatus } from './output-status'
 import type { RemoteConfigPatch, RemoteState } from './remote'
+import type { HookEventName } from './hooks'
+import type { ScriptSettingsPatch, ScriptSettingsView } from './script-settings'
 import type { Settings, SettingsPatch } from './settings'
 import type { WorkspacePatch, WorkspaceView } from './workspaces'
 
@@ -73,6 +79,26 @@ export interface DevhubApi {
   ): Promise<RunHistoryOutput | null>
   /** Readiness of every checked run; later changes arrive as `run-health` events. */
   listRunHealth(): Promise<RunHealth[]>
+  /**
+   * Output-matched status of runs whose script declared `status` rules.
+   * Later changes arrive as `run-output-status` events.
+   */
+  listOutputStatus(): Promise<RunOutputStatus[]>
+  /** Per-machine stars. A script with no entry uses its `.devhub.yaml` `favorite` flag. */
+  listScriptFavorites(): Promise<ScriptFavorite[]>
+  /** Stores an explicit star or unstar for one script and returns the full list. */
+  setScriptFavorite(
+    projectId: string,
+    scriptId: string,
+    favorite: boolean
+  ): Promise<ScriptFavorite[]>
+  /**
+   * Per-machine choices for the floating panel's long-running list.
+   * A script with no entry uses its `.devhub.yaml` `overlay` flag.
+   */
+  listOverlayScripts(): Promise<ScriptOverlay[]>
+  /** Stores whether one script is listed on the panel and returns the full list. */
+  setOverlayScript(projectId: string, scriptId: string, overlay: boolean): Promise<ScriptOverlay[]>
   /** Recent output; combine with `run-output` events through `OutputCursor`. */
   getRunOutput(runId: string): Promise<RunOutputSnapshot>
   /** Sends terminal input (keystrokes) to an active run. */
@@ -84,6 +110,31 @@ export interface DevhubApi {
   getSettings(): Promise<Settings>
   /** Validates and applies a partial update; takes effect immediately. */
   updateSettings(patch: SettingsPatch): Promise<Settings>
+  /**
+   * Runs the saved global hooks for one event. Match and the interval are ignored,
+   * so a button in Settings can try the actions. Project-file hooks are not included.
+   */
+  testHook(event: HookEventName): Promise<{ fired: number }>
+  /** Flags, status source, and hooks stored for one script. Favorite and overlay are the effective values. */
+  getScriptSettings(projectId: string, scriptId: string): Promise<ScriptSettingsView>
+  /**
+   * Writes this script's settings into the project's `.devhub.yaml` and stores the same
+   * favorite and overlay choice on this machine.
+   */
+  updateScriptSettings(
+    projectId: string,
+    scriptId: string,
+    patch: ScriptSettingsPatch
+  ): Promise<ScriptSettingsView>
+  /**
+   * Runs this script's saved hooks and legacy `notify`. Global and project-root hooks are skipped.
+   * Match and the interval are ignored.
+   */
+  testScriptHook(
+    projectId: string,
+    scriptId: string,
+    event: HookEventName
+  ): Promise<{ fired: number }>
   listGroups(): Promise<Group[]>
   /** Creates a group (input without id) or replaces an existing one. */
   saveGroup(input: GroupInput): Promise<Group>
@@ -143,12 +194,21 @@ export const devhubApiMethods = [
   'clearRunHistory',
   'getRunHistoryOutput',
   'listRunHealth',
+  'listOutputStatus',
+  'listScriptFavorites',
+  'setScriptFavorite',
+  'listOverlayScripts',
+  'setOverlayScript',
   'getRunOutput',
   'writeRunInput',
   'resizeRun',
   'removeRun',
   'getSettings',
   'updateSettings',
+  'testHook',
+  'getScriptSettings',
+  'updateScriptSettings',
+  'testScriptHook',
   'listGroups',
   'saveGroup',
   'deleteGroup',
@@ -206,7 +266,59 @@ export interface ShellApi {
   toggleMaximizeWindow(): Promise<void>
   /** Same as the system close button: hides to the tray or quits, per settings. */
   closeWindow(): Promise<void>
+  /** Whether the floating panel stays above other windows. */
+  getOverlayState(): Promise<OverlayWindowState>
+  setOverlayPinned(pinned: boolean): Promise<void>
+  /** Hides the floating panel without quitting. */
+  hideOverlay(): Promise<void>
+  /** Shows the floating panel, or hides it when it is already visible. Same as the tray item. */
+  toggleOverlay(): Promise<void>
+  /** Shows and focuses the main window. */
+  showMainWindow(): Promise<void>
+  /** Shows the main window and asks it to open this run's terminal tab. */
+  focusRun(projectId: string, runId: string): Promise<void>
+  /** Fired in the main window when the panel asks to show a run. */
+  onFocusRun(listener: (target: OverlayFocusTarget) => void): () => void
+  /**
+   * Content height of the floating panel, so the window can hug it.
+   * `floor` is a temporary minimum while a popover is open; omit it to clear.
+   */
+  setOverlayContentHeight(height: number, floor?: number): Promise<void>
+  /** Drag an edge of the floating panel. `dx`/`dy` are screen pixels since pointer-down. */
+  resizeOverlay(gesture: OverlayResizeGesture): Promise<void>
+  /**
+   * Drag the floating panel from a blank area. `dx`/`dy` are screen pixels since the
+   * gesture passed the click threshold. Clicks stay in the renderer; this only moves.
+   */
+  moveOverlay(gesture: OverlayMoveGesture): Promise<void>
 }
+
+export interface OverlayWindowState {
+  alwaysOnTop: boolean
+}
+
+export const overlayFocusSchema = z.object({
+  projectId: z.string().trim().min(1).max(200),
+  runId: z.string().trim().min(1).max(200)
+})
+export type OverlayFocusTarget = z.infer<typeof overlayFocusSchema>
+
+export const overlayResizeEdges = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+export const overlayResizeSchema = z.object({
+  dx: z.number().finite().min(-8000).max(8000),
+  dy: z.number().finite().min(-8000).max(8000),
+  edge: z.enum(overlayResizeEdges),
+  phase: z.enum(['start', 'move', 'end'])
+})
+export type OverlayResizeEdge = z.infer<typeof overlayResizeSchema>['edge']
+export type OverlayResizeGesture = z.infer<typeof overlayResizeSchema>
+
+export const overlayMoveSchema = z.object({
+  dx: z.number().finite().min(-8000).max(8000),
+  dy: z.number().finite().min(-8000).max(8000),
+  phase: z.enum(['start', 'move', 'end'])
+})
+export type OverlayMoveGesture = z.infer<typeof overlayMoveSchema>
 
 export interface WindowState {
   /** Host OS (`win32` / `linux` / `darwin`): macOS keeps its own traffic-light buttons. */
@@ -245,5 +357,16 @@ export const shellChannel = {
   windowState: 'shell:windowState',
   minimizeWindow: 'shell:minimizeWindow',
   toggleMaximizeWindow: 'shell:toggleMaximizeWindow',
-  closeWindow: 'shell:closeWindow'
+  closeWindow: 'shell:closeWindow',
+  getOverlayState: 'shell:getOverlayState',
+  setOverlayPinned: 'shell:setOverlayPinned',
+  hideOverlay: 'shell:hideOverlay',
+  toggleOverlay: 'shell:toggleOverlay',
+  showMainWindow: 'shell:showMainWindow',
+  focusRun: 'shell:focusRun',
+  /** Pushed to the main window when the panel asks to open a run. */
+  focusRunTarget: 'shell:focusRunTarget',
+  setOverlayContentHeight: 'shell:setOverlayContentHeight',
+  resizeOverlay: 'shell:resizeOverlay',
+  moveOverlay: 'shell:moveOverlay'
 } as const

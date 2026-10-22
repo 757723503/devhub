@@ -1,0 +1,147 @@
+# axe_king 的任务，整理成 DevHub 自定义脚本（来源：.vscode/tasks.json）。
+# 用法：复制到项目根目录并命名为 .devhub.yaml。该项目在 Windows 上用 yarn，例如 C:\github\axe_king。
+# 没写 cwd 的命令在项目根目录执行。
+#
+# tstl 预设按 tsc / typescript-to-lua 的 watch 行校准过：
+#   Found 0 errors. Watching for file changes. = 就绪
+#   File change detected. Starting incremental compilation... = 构建中
+#   Starting compilation in watch mode... = 构建中
+#   Found N errors（N > 0）= 出错
+# webpack 预设仍是按常见日志写的。灯色不对就改对应脚本的正则。
+# 「全量dev」同时跑 panorama 的 webpack watch 和 vscripts 的 typescript-to-lua --watch，所以用两个预设。
+# overlay: true 才会出现在悬浮面板的长期运行列表。只写 status 不会自动放进去。
+# notify 是这个脚本的钩子简写（设置页 Hooks 是跨项目规则，文件根上也可以写 hooks）。
+# 脚本条目里的 hooks 不写 match，只对这一条生效。主窗口脚本行的齿轮会把设置写回这个文件。
+# run 在项目目录后台执行，标准输入是事件 JSON，不再另开终端。喇叭弹层里的静音和音量只影响声音。
+
+scripts:
+  全量dev:
+    command: yarn dev
+    description: tsx scripts/dev.ts。webpack watch（panorama）+ tstl --watch（vscripts）
+    favorite: true
+    overlay: true
+    status:
+      presets: [webpack, tstl]
+    notify:
+      onReady:
+        sound: default
+        toast: true
+        # run: yarn launch axe_king s1-1
+      onError:
+        sound: error
+        toast: true
+      # firstBuild: true
+      # interval: 15
+
+  '[后端专用]dev':
+    command: yarn dev:backend:watch
+    description: 长期运行。输出格式未核对，暂借用 tsc / tstl 的 watch 预设。
+    overlay: true
+    status: tstl
+
+  '启动(s1-1)':
+    command: yarn launch axe_king s1-1
+    favorite: true
+
+  '启动(s1-2)':
+    command: yarn launch axe_king s1-2
+    favorite: true
+
+  '启动(s2-1)':
+    command: yarn launch axe_king s2-1
+    favorite: true
+
+  '启动(s2-2)':
+    command: yarn launch axe_king s2-2
+    favorite: true
+
+  '启动(s3-1)':
+    command: npm run launch:s3-1
+    favorite: true
+
+  '同步拉取(不产生脏数据)':
+    command: yarn git-sync
+    favorite: true
+
+  服务端watch:
+    command: npm run cloud:watch
+    cwd: cloudbase
+    description: 长期运行。下面的正则是猜测，未对照 cloudbase 的真实日志。
+    overlay: true
+    status:
+      busy: '(?:Restarting|Compiling\.\.\.|File change detected)'
+      ready: '(?:compiled successfully|Found 0 errors|watching for file changes|ready in)'
+      error: '(?:Failed to compile|error TS\d+|EADDRINUSE)'
+
+  装备本地化生产:
+    command: ts-node gen_localization.ts
+
+  本地部署:
+    command: yarn cloud:serve
+    description: 长期运行。就绪行是猜测，未对照真实输出。
+    overlay: true
+    status:
+      busy: '(?:starting|Starting|compiling)'
+      ready: '(?:listening on|Local:|ready in)'
+      error: '(?:EADDRINUSE|Error:)'
+
+  云端部署:
+    command: npm run deploy:smart
+    cwd: cloudbase
+    description: 会发布到云端，运行前需要确认。
+    confirm: true
+
+  扫描所有特效和模型:
+    command: yarn scan:resources
+
+  开启fs服务:
+    command: npm run dev:backend
+    description: tsx watch，长期运行。状态规则是猜测。
+    overlay: true
+    status:
+      busy: '(?:Restarting|restarting due to)'
+      ready: '(?:watching for file changes|started)'
+      error: '(?:Error:|EADDRINUSE)'
+
+  CSV编辑器-应用改动:
+    command: npm run csv-editor:apply
+    favorite: true
+
+  赛季-构建数据:
+    command: npm run ruleset:data
+    favorite: true
+
+  '饰品数据(规范化)':
+    command: npm run wearable:normalize
+
+  '饰品数据(生成视觉)':
+    command: npm run gen:wearable-visuals
+
+  国际化-占位:
+    command: npm run localization:placeholders
+
+  国际化-翻译:
+    command: npm run translate:localization
+
+  国际化-构建:
+    command: npm run localization:build
+
+  国际化-导入专业翻译:
+    # 原任务要在运行时填路径。这里把说明里的默认值写死；换文件或批次时改这条命令。
+    command: >-
+      npm run import:professional-localization --
+      --english=game/resource/addon_english.txt
+      --russian=game/resource/addon_russian.txt
+      --vietnamese=game/resource/addon_vietnamese.txt
+      --review-batch=2026-08
+      --refresh-baseline
+    description: 英文 / 俄文 / 越文使用 game/resource 下的默认文件，批次示例为 2026-08。
+
+  国际化-终版:
+    command: npm run localization:final
+
+  国际化-清理Token:
+    command: npm run localization:prune-orphans
+
+  图纸同步-应用:
+    command: npx tsx scripts/sync_formula_item_grade.ts --apply

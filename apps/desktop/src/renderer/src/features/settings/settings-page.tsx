@@ -4,7 +4,9 @@ import type { EditorId, Settings, SettingsPatch } from '@devhub/shared'
 import { access, shell } from '@renderer/api'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
 import { Button } from '@renderer/components/ui/button'
+import { Input } from '@renderer/components/ui/input'
 import { useEditors } from '@renderer/features/editors/use-editors'
+import { OverlayOpacitySlider } from '@renderer/features/overlay/overlay-opacity'
 import { useShells } from '@renderer/features/terminal/use-shells'
 import {
   fontSizeRange,
@@ -13,6 +15,7 @@ import {
 } from '@renderer/features/terminal/terminal-prefs'
 import { appearance, type ThemePreference } from '@renderer/lib/appearance'
 import { CustomShellsEditor } from './custom-shells-editor'
+import { HooksSection } from './hooks-section'
 import { RemoteSection } from './remote-section'
 import { StylePicker } from './style-picker'
 import { UpdatesSection } from './updates-section'
@@ -62,6 +65,7 @@ export function SettingsPage({ onClose }: { onClose: () => void }): React.JSX.El
                   />
                   <EditorsSection save={save} onError={setError} />
                   <ProcessSection settings={settings.data} save={save} />
+                  <HooksSection settings={settings.data} save={save} />
                 </>
               )}
               <RemoteSection onError={setError} />
@@ -237,9 +241,61 @@ function EditorsSection({
   )
 }
 
+function ShortcutField({
+  value,
+  onCommit
+}: {
+  value: string
+  onCommit: (next: string) => void
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(value)
+  return (
+    <Input
+      id="settings-overlay-shortcut"
+      className="h-8 w-full max-w-56 min-w-0 font-mono text-xs"
+      value={draft}
+      spellCheck={false}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        const next = draft.trim()
+        if (next && next !== value) onCommit(next)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+      }}
+    />
+  )
+}
+
 function ProcessSection({ settings, save }: SectionProps): React.JSX.Element {
   return (
     <SettingsSection title="进程">
+      <SettingRow
+        label="悬浮面板"
+        htmlFor="settings-overlay-shortcut"
+        description={
+          <span className="break-all">
+            全局快捷键，显示或隐藏置顶小面板。默认 Ctrl+Alt+D，写法如 CommandOrControl+Alt+D
+          </span>
+        }
+      >
+        <ShortcutField
+          key={settings.overlayShortcut}
+          value={settings.overlayShortcut}
+          onCommit={(next) => save({ overlayShortcut: next })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="不透明度"
+        htmlFor="settings-overlay-opacity"
+        description="悬浮面板整体透明度，从 30% 到 100%。"
+      >
+        <OverlayOpacitySlider
+          id="settings-overlay-opacity"
+          value={settings.overlayOpacity}
+          onCommit={(value) => save({ overlayOpacity: value })}
+        />
+      </SettingRow>
       <SettingRow
         label="停止等待时间"
         htmlFor="settings-grace"

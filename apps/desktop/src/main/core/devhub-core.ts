@@ -32,6 +32,20 @@ import {
 import { createGroupRunner } from './groups/group-runner'
 import { createGroupService, emptyGroupsFile, groupsFileSchema } from './groups/group-service'
 import { createEventBus } from './events/event-bus'
+import {
+  createFavoriteService,
+  emptyFavoritesFile,
+  favoritesFileSchema
+} from './favorites/favorite-service'
+import { runHookCommand } from './hooks/hook-command'
+import { createHookRunner } from './hooks/hook-runner'
+import { readProjectHooks } from './hooks/project-hooks'
+import { createOutputStatusMonitor } from './output-status/output-status-monitor'
+import {
+  createOverlayScriptService,
+  emptyOverlayScriptsFile,
+  overlayScriptsFileSchema
+} from './overlay-scripts/overlay-script-service'
 import { createIdentityReader } from './process/process-identity'
 import { createProcessKiller } from './process/process-killer'
 import { nodePtySpawner } from './process/pty'
@@ -42,6 +56,7 @@ import { listNetworkAddresses } from './remote/network-addresses'
 import { createRemoteConfigStore, emptyRemoteFile, remoteFileSchema } from './remote/remote-config'
 import { createRemoteHost } from './remote/remote-host'
 import { createScriptService } from './scripts/script-service'
+import { createScriptSettingsService } from './scripts/script-settings-service'
 import {
   createSettingsService,
   emptySettingsFile,
@@ -239,6 +254,60 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     .rescanAll()
     .catch((error: unknown) => console.error('[core] workspace rescan failed', error))
 
+  const favorites = createFavoriteService({
+    store: createJsonStore({
+      filePath: join(env.dataDir, 'favorites.json'),
+      schema: favoritesFileSchema,
+      fallback: emptyFavoritesFile
+    }),
+    emit: (event) => events.emit(event)
+  })
+
+  const overlayScripts = createOverlayScriptService({
+    store: createJsonStore({
+      filePath: join(env.dataDir, 'overlay-scripts.json'),
+      schema: overlayScriptsFileSchema,
+      fallback: emptyOverlayScriptsFile
+    }),
+    emit: (event) => events.emit(event)
+  })
+
+  const outputStatus = createOutputStatusMonitor({
+    subscribe: (listener) => events.subscribe(listener),
+    resolveRules: async (run) => {
+      try {
+        return (await scripts.find(run.projectId, run.scriptId)).script.outputStatus ?? null
+      } catch {
+        return null
+      }
+    },
+    emit: (event) => events.emit(event)
+  })
+
+  const hookRunner = createHookRunner({
+    subscribe: (listener) => events.subscribe(listener),
+    getSettings: () => settings.get(),
+    resolveScript: async (projectId, scriptId) => {
+      try {
+        const found = await scripts.find(projectId, scriptId)
+        return {
+          name: found.script.name,
+          projectName: found.project.name,
+          projectPath: found.project.path,
+          ...(found.script.notify ? { notify: found.script.notify } : {}),
+          ...(found.script.hooks ? { hooks: found.script.hooks } : {})
+        }
+      } catch {
+        return null
+      }
+    },
+    loadProjectHooks: (projectPath) => readProjectHooks(projectPath),
+    runCommand: (request) => runHookCommand(request),
+    emit: (event) => events.emit(event)
+  })
+
+  const scriptSettings = createScriptSettingsService({ scripts, favorites, overlayScripts })
+
   const health = createHealthMonitor({
     subscribe: (listener) => events.subscribe(listener),
     resolveTarget: async (run) =>
@@ -278,12 +347,25 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
     clearRunHistory: (projectId, scriptId) => history.clear(projectId, scriptId),
     getRunHistoryOutput: (projectId, scriptId, runId) => history.output(projectId, scriptId, runId),
     listRunHealth: async () => health.list(),
+    listOutputStatus: async () => outputStatus.list(),
+    listScriptFavorites: () => favorites.list(),
+    setScriptFavorite: (projectId, scriptId, favorite) =>
+      favorites.set(projectId, scriptId, favorite),
+    listOverlayScripts: () => overlayScripts.list(),
+    setOverlayScript: (projectId, scriptId, overlay) =>
+      overlayScripts.set(projectId, scriptId, overlay),
     getRunOutput: async (runId) => runs.output(runId),
     writeRunInput: async (runId, data) => runs.writeInput(runId, data),
     resizeRun: async (runId, cols, rows) => runs.resize(runId, cols, rows),
     removeRun: async (runId) => runs.remove(runId),
     getSettings: () => settings.get(),
     updateSettings: (patch) => settings.update(patch),
+    testHook: (event) => hookRunner.test(event),
+    getScriptSettings: (projectId, scriptId) => scriptSettings.get(projectId, scriptId),
+    updateScriptSettings: (projectId, scriptId, patch) =>
+      scriptSettings.update(projectId, scriptId, patch),
+    testScriptHook: (projectId, scriptId, event) =>
+      hookRunner.testScript(projectId, scriptId, event),
     listGroups: () => groupService.list(),
     saveGroup: (input) => groupService.save(input),
     deleteGroup: async (groupId) => {
@@ -329,6 +411,8 @@ export function createDevhubCore(env: CoreEnvironment): DevhubCore {
       await remote.dispose()
       // Cancel sequences first so no step starts while the runs are being stopped.
       groupRunner.dispose()
+      outputStatus.dispose()
+      hookRunner.dispose()
       health.dispose()
       await runs.dispose()
       // The runs just stopped are recorded as they exit; let those writes finish.

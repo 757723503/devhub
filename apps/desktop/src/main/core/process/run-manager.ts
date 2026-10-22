@@ -30,6 +30,11 @@ export interface RunManager {
   start(projectId: unknown, scriptId: unknown, options?: unknown): Promise<Run>
   /** Opens an interactive shell in the project directory; the default shell when omitted. */
   startShell(projectId: unknown, shellId?: unknown): Promise<Run>
+  /**
+   * Notification callback. Runs in the project directory under a `notify:` script id,
+   * so it shows up as its own terminal and is not matched as a declared script.
+   */
+  startCommand(projectId: string, command: string, title: string, scriptId?: string): Promise<Run>
   stop(runId: unknown): Promise<void>
   restart(runId: unknown): Promise<Run>
   list(): Run[]
@@ -220,10 +225,55 @@ export function createRunManager({
   }
   const stopEntry = (entry: RunEntry): Promise<void> => stopRunEntry(entry, stopDeps)
 
+  const commandInput = z.string().trim().min(1).max(500)
+  const titleInput = z.string().trim().min(1).max(80)
+
+  const startCommand = async (
+    projectId: string,
+    command: string,
+    title: string,
+    scriptId?: string
+  ): Promise<Run> => {
+    const project = await projects.get(projectId)
+    if (!(await isDirectory(project.path))) {
+      throw new DevhubError('PROJECT_PATH_NOT_FOUND', `目录不存在：${project.path}`)
+    }
+    const parsedCommand = commandInput.safeParse(command)
+    const parsedTitle = titleInput.safeParse(title)
+    if (!parsedCommand.success || !parsedTitle.success) {
+      throw new DevhubError('INVALID_INPUT', '通知命令无效')
+    }
+    const runEnv = definedEnv(await resolveEnv())
+    const id = scriptId?.startsWith('notify:') ? scriptId : `notify:${newId()}`
+    const previous = [...entries.values()].filter(
+      ({ run }) => run.kind === 'script' && run.projectId === project.id && run.scriptId === id
+    )
+    if (previous.some(({ run }) => run.status !== 'exited')) {
+      throw new DevhubError('SCRIPT_ALREADY_RUNNING', '通知命令已在运行')
+    }
+    for (const { run } of previous) {
+      entries.delete(run.id)
+      emit({ type: 'run-removed', runId: run.id })
+    }
+    const run = launch({
+      projectId: project.id,
+      identity: { kind: 'script', scriptId: id },
+      title: parsedTitle.data,
+      command: parsedCommand.data,
+      ...shellInvocation(parsedCommand.data, platform, runEnv),
+      cwd: project.path,
+      env: runEnv
+    })
+    await afterScriptStart()
+    return run
+  }
+
   return {
     start,
 
     startShell,
+
+    startCommand,
 
     async stop(runId) {
       await stopEntry(getEntry(runId))
@@ -233,6 +283,9 @@ export function createRunManager({
       const entry = getEntry(runId)
       await stopEntry(entry)
       const { run } = entry
+      if (run.kind === 'script' && run.scriptId.startsWith('notify:')) {
+        return startCommand(run.projectId, run.command, run.title, run.scriptId)
+      }
       return run.kind === 'script'
         ? // Its own port was just released; another taker in between surfaces in the output.
           start(run.projectId, run.scriptId, { ignorePortConflicts: true })

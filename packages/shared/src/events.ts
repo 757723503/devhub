@@ -1,6 +1,9 @@
 import type { Run } from './domain'
+import type { ScriptFavorite } from './favorites'
+import type { ScriptOverlay } from './overlay-scripts'
 import type { GroupRunState } from './groups'
 import type { RunHealth } from './health'
+import type { RunOutputState, RunOutputStatus } from './output-status'
 import type { Settings } from './settings'
 
 /**
@@ -17,6 +20,33 @@ export type DevhubEvent =
   | { type: 'group-updated'; state: GroupRunState }
   /** `health` is null once the run is no longer checked (stopping, exited, removed). */
   | { type: 'run-health'; runId: string; health: RunHealth | null }
+  /** `status` is null once the run is removed. Output rules only; port health stays on `run-health`. */
+  | { type: 'run-output-status'; runId: string; status: RunOutputStatus | null }
+  /**
+   * A detected output state actually changed. The initial building state and process exit
+   * do not count, and a repeated match of the same state does not emit again.
+   */
+  | {
+      type: 'run-status-transition'
+      runId: string
+      projectId: string
+      scriptId: string
+      from: RunOutputState
+      to: Exclude<RunOutputState, 'exited'>
+    }
+  /** Desktop main process plays `sound` and shows `toast`. The core does not import Electron. */
+  | {
+      type: 'status-notify'
+      scriptName: string
+      phase: 'ready' | 'error' | 'start' | 'exit'
+      sound?: string
+      toast: boolean
+      body: string
+      projectPath: string
+    }
+  | { type: 'favorites-updated'; favorites: ScriptFavorite[] }
+  /** Which scripts the floating panel lists as long-running. */
+  | { type: 'overlay-scripts-updated'; scripts: ScriptOverlay[] }
   | { type: 'settings-updated'; settings: Settings }
   /** Projects or workspaces changed in the core (a rescan, a workspace edit); refetch both. */
   | { type: 'projects-updated' }

@@ -63,3 +63,61 @@ DevHub 会请求 `http://localhost:<第一个端口><路径>`，返回 2xx 即�
 ## 安全
 
 `.devhub.yaml` 中的命令与 `package.json` 的 scripts 同等对待：只有点击运行才会执行。
+
+## 收藏、确认与输出状态
+
+```yaml
+scripts:
+  dev:
+    command: yarn dev
+    favorite: true
+    overlay: true # 出现在悬浮面板的长期运行列表
+    status: [webpack, tstl] # 或 status: webpack；也可写 busy/ready/error 正则
+  deploy:
+    command: npm run deploy
+    confirm: true # 点击运行前先确认
+```
+
+`favorite: true` 让脚本默认出现在收藏里（主窗口可只看收藏，悬浮面板底部的按钮就是收藏）。在界面上加星或取消会记在本机，并覆盖文件里的默认值。
+
+`overlay: true` 让脚本出现在悬浮面板的长期运行列表。只写 `status` 不会自动放进去。脚本行上的面板图标可以在本机改这个选择，并覆盖文件里的默认值。
+
+`confirm: true` 时，从脚本列表或悬浮面板点击运行会先询问。批量任务不弹这个确认框。
+
+`status` 给没有固定端口的 watch 用：DevHub 去掉 ANSI 后，用最近输出里**最后一次**匹配决定灯的颜色（构建中 / 就绪 / 出错），所以一次编译失败后再次编译成功，灯会回到就绪。预设 `webpack` 与 `tstl`（tsc --watch / typescript-to-lua）按这些工具的常见输出编写。`tstl` 把 `Found 0 errors. Watching for file changes.` 当作就绪，把 `Starting incremental compilation...` 和 `Starting compilation in watch mode...` 当作构建中，把 `Found N errors`（N > 0）当作出错。对不上真实日志时改成自己的正则。
+
+状态**真正变化**时可以再做一件事（同一种状态反复出现不会重复触发）。主配置在设置页的 Hooks（全局 JSON，也可在文件根上写 `hooks`，和设置里的合在一起）。下面的 `notify` 是这个脚本的简写：
+
+```yaml
+notify:
+  onReady:
+    sound: default # 或 error，或项目里的 sounds/ok.wav
+    toast: true
+    # run: yarn launch axe_king s1-1
+  onError:
+    sound: error
+    toast: true
+  firstBuild: true # false 则跳过这次启动后的第一次就绪
+  interval: 15 # 同一状态至少隔这么多秒再提示一次，0 为不限制
+```
+
+`sound` 播放内置提示音或一个 wav。`toast` 是系统通知。`run` 在项目目录后台执行一条命令（标准输入是事件 JSON，默认 30 秒超时），不再另开终端。标题栏和悬浮面板上的喇叭点开后可以静音和调总音量；关掉声音或把音量调到 0 时，通知和命令仍会执行。悬浮面板用托盘或 Ctrl+Alt+D 打开（可在设置里改快捷键）。空白处可以拖动面板，拖到屏幕边缘会贴边。
+
+## 单个脚本的钩子
+
+主窗口脚本行（面板图标和星标的左边）上的齿轮，打开的是这一条脚本的设置。悬浮面板上没有这个按钮。收藏、长期运行、运行前确认、输出状态和 Hooks 会写进该项目的 `.devhub.yaml`。Hooks 与设置页相同，但不写 `match`，保存后只匹配这个脚本。执行顺序是：设置页 Hooks、文件根上的 `hooks`、脚本条目里的 `hooks`、上面的 `notify`。
+
+没有 `command` 的条目不会变成另一条自定义脚本，只给同名的 npm / Maven / Gradle 脚本加上这些设置：
+
+```yaml
+scripts:
+  dev: # package.json 里已有的 npm script
+    favorite: true
+    confirm: true
+    hooks:
+      onReady:
+        - actions:
+            - type: sound
+              file: default
+            - type: toast
+```

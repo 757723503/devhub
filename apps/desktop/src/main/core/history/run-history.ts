@@ -196,6 +196,8 @@ export function createRunHistory({
 
   subscribe((event) => {
     if (event.type === 'run-updated' && event.run.kind === 'script') {
+      // Callback commands are not project scripts; a `notify:` id would pollute history.
+      if (event.run.scriptId.startsWith('notify:')) return
       if (removedProjects.has(event.run.projectId)) return
       const known = records.find((record) => record.runId === event.run.id)
       if (!buffers.has(event.run.id) && (!known || known.status === 'running')) {

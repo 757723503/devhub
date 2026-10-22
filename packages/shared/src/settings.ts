@@ -1,5 +1,32 @@
 import { z } from 'zod'
 import { customShellIdSchema, shellIdSchema } from './domain'
+import { emptyHooksDocument, hooksDocumentSchema } from './hooks'
+
+/**
+ * Electron accelerator. `CommandOrControl` is Ctrl on Windows and Linux.
+ * Empty is rejected: clearing the field in settings would leave the panel without a shortcut.
+ */
+const acceleratorModifier =
+  'CommandOrControl|Command|Control|Ctrl|Alt|Option|AltGr|Shift|Super|Meta'
+const acceleratorKey =
+  '[A-Z0-9]|F(?:1[0-9]|2[0-4]|[1-9])|Plus|Space|Tab|Backspace|Delete|Insert|Return|Enter|Up|Down|Left|Right|Home|End|PageUp|PageDown|Escape|Esc'
+export const overlayShortcutSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(60)
+  .regex(
+    new RegExp(`^(?:(?:${acceleratorModifier})\\+)*(?:${acceleratorKey})$`),
+    '快捷键格式无效，例如 CommandOrControl+Alt+D'
+  )
+
+export const defaultOverlayShortcut = 'CommandOrControl+Alt+D'
+
+/** Floating panel opacity. 0.3 is still readable; 1 is the solid card. */
+export const overlayOpacityMin = 0.3
+export const overlayOpacityMax = 1
+export const defaultOverlayOpacity = 1
+export const overlayOpacitySchema = z.number().min(overlayOpacityMin).max(overlayOpacityMax)
 
 /** A shell the user added: any program run interactively in the project directory. */
 export const customShellSchema = z.object({
@@ -27,7 +54,20 @@ export const settingsSchema = z.object({
   /** Closing the window: keep running in the tray, or quit (stopping every run). */
   closeAction: z.enum(['tray', 'quit']),
   /** Defaults to none, so settings files written before this field existed still load. */
-  customShells: z.array(customShellSchema).max(10).default([])
+  customShells: z.array(customShellSchema).max(10).default([]),
+  /**
+   * Global shortcut that shows or hides the floating panel. Default matches files written
+   * before this field existed.
+   */
+  overlayShortcut: overlayShortcutSchema.default(defaultOverlayShortcut),
+  /** Whole-panel opacity, from 30% to 100%. Default matches files written before this field. */
+  overlayOpacity: overlayOpacitySchema.default(defaultOverlayOpacity),
+  /** When true, hook sounds stay quiet. Toasts and commands still run. */
+  notifyMuted: z.boolean().default(false),
+  /** Master gain for every hook sound, from silent to full. */
+  hookVolume: z.number().min(0).max(1).default(1),
+  /** Global hooks edited as JSON in Settings. */
+  hooks: hooksDocumentSchema.default(emptyHooksDocument)
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -36,7 +76,12 @@ export const defaultSettings: Settings = {
   editorPaths: { vscode: null, idea: null },
   stopGraceSeconds: 5,
   closeAction: 'tray',
-  customShells: []
+  customShells: [],
+  overlayShortcut: defaultOverlayShortcut,
+  overlayOpacity: defaultOverlayOpacity,
+  notifyMuted: false,
+  hookVolume: 1,
+  hooks: emptyHooksDocument
 }
 
 /**
@@ -47,7 +92,14 @@ export const defaultSettings: Settings = {
 export const settingsPatchSchema = settingsSchema
   .extend({
     editorPaths: settingsSchema.shape.editorPaths.partial(),
-    customShells: z.array(customShellSchema).max(10)
+    // Redeclared without defaults: under `.partial()` a default still applies, and an unrelated
+    // update would reset the shortcut or wipe custom shells.
+    customShells: z.array(customShellSchema).max(10),
+    overlayShortcut: overlayShortcutSchema,
+    overlayOpacity: overlayOpacitySchema,
+    notifyMuted: z.boolean(),
+    hookVolume: z.number().min(0).max(1),
+    hooks: hooksDocumentSchema
   })
   .partial()
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

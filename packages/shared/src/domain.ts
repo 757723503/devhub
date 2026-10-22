@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import { healthPathSchema } from './health'
+import { hookEventMapSchema, scriptHookEventMapSchema } from './hooks'
+import { notifyConfigSchema, scriptNotifySchema } from './notify'
+import { outputStatusConfigSchema } from './output-status'
 
 /** Where a script was discovered. Each source maps to one detector in the desktop main process. */
 export const scriptSourceSchema = z.enum(['npm', 'maven', 'gradle', 'custom'])
@@ -17,7 +20,28 @@ export const scriptSchema = z.object({
   /** Ports the script is expected to listen on (inferred), checked before it starts. */
   ports: z.array(z.number().int().min(1).max(65535)).optional(),
   /** HTTP path checked on the first port to decide readiness; otherwise the ports are. */
-  healthPath: healthPathSchema.optional()
+  healthPath: healthPathSchema.optional(),
+  /** Ask before running. Set from `.devhub.yaml` `confirm: true` (for example a cloud deploy). */
+  confirm: z.boolean().optional(),
+  /** Starred in the project file. A per-machine choice in favorites.json overrides this. */
+  favorite: z.boolean().optional(),
+  /**
+   * Listed in the floating panel's long-running section. A per-machine choice in
+   * overlay-scripts.json overrides this. Declaring `status` does not list the script by itself.
+   */
+  overlay: z.boolean().optional(),
+  /** Sound, toast, and callback when output status changes. Present when yaml declared `notify`. */
+  notify: scriptNotifySchema.optional(),
+  /** Hooks from this script's `.devhub.yaml` entry. `match` is applied when they run. */
+  hooks: scriptHookEventMapSchema.optional(),
+  /** Patterns matched against live output. Present only when the script declared `status`. */
+  outputStatus: z
+    .object({
+      busy: z.string().min(1).max(4000).optional(),
+      ready: z.string().min(1).max(4000).optional(),
+      error: z.string().min(1).max(4000).optional()
+    })
+    .optional()
 })
 export type Script = z.infer<typeof scriptSchema>
 
@@ -113,12 +137,21 @@ const configCommandSchema = z.union([
 /** Schema of the optional `.devhub.yaml` file committed in a managed project. */
 export const projectConfigSchema = z
   .object({
+    /**
+     * Project-wide hooks. Merged after Settings and before each script's own hooks and `notify`.
+     * Same shape as the `hooks` object inside the settings JSON.
+     */
+    hooks: hookEventMapSchema.optional(),
     scripts: z
       .record(
         z.string().trim().min(1).max(60),
         z
           .object({
-            command: configCommandSchema,
+            /**
+             * Omitted when this entry only annotates a script another detector already found
+             * (an npm script, for example). A bare entry with neither a command nor settings is invalid.
+             */
+            command: configCommandSchema.optional(),
             /** Relative to the project; must stay inside it. */
             cwd: z.string().optional(),
             description: z.string().optional(),
@@ -126,9 +159,47 @@ export const projectConfigSchema = z
             port: z.number().int().min(1).max(65535).optional(),
             ports: z.array(z.number().int().min(1).max(65535)).optional(),
             /** HTTP path that must answer 2xx for the script to count as ready. */
-            health: healthPathSchema.optional()
+            health: healthPathSchema.optional(),
+            /** Show a confirmation before this command runs. */
+            confirm: z.boolean().optional(),
+            /** Start this script already starred. The user can still unpin it locally. */
+            favorite: z.boolean().optional(),
+            /** List this script in the floating panel's long-running section. */
+            overlay: z.boolean().optional(),
+            /**
+             * Output lines that move a long-running script between building, ready and error.
+             * A preset name (`webpack`, `tstl`), a list of them, or `{ busy, ready, error }` regexes.
+             */
+            status: outputStatusConfigSchema.optional(),
+            /**
+             * What to do when `status` changes to ready or error: play a sound, show a toast,
+             * or run a command in the project directory.
+             */
+            notify: notifyConfigSchema.optional(),
+            /**
+             * Hooks for this script. Rules do not include `match`; DevHub binds them to this name.
+             * Same events and actions as the settings document.
+             */
+            hooks: scriptHookEventMapSchema.optional()
           })
           .strict()
+          .superRefine((entry, ctx) => {
+            if (entry.command) return
+            const annotated =
+              entry.confirm !== undefined ||
+              entry.favorite !== undefined ||
+              entry.overlay !== undefined ||
+              entry.status !== undefined ||
+              entry.notify !== undefined ||
+              entry.hooks !== undefined
+            if (annotated) return
+            ctx.addIssue({
+              code: 'custom',
+              path: ['command'],
+              message: '需要 command',
+              input: entry
+            })
+          })
       )
       .default({})
   })

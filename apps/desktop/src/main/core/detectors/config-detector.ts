@@ -1,6 +1,13 @@
 import { isAbsolute, join, relative, resolve } from 'path'
 import { parse, YAMLParseError } from 'yaml'
-import { projectConfigSchema, type Script } from '@devhub/shared'
+import {
+  projectConfigSchema,
+  resolveNotify,
+  resolveOutputStatus,
+  scriptHooksAreEmpty,
+  type ProjectConfig,
+  type Script
+} from '@devhub/shared'
 import { inferNpmPorts } from '../ports/infer-ports'
 import { readOptionalFile } from './fs-utils'
 import type { ScriptDetector } from './types'
@@ -10,6 +17,51 @@ export interface ConfigDetectorDeps {
 }
 
 export const configFileNames = ['.devhub.yaml', '.devhub.yml']
+
+function commandForPlatform(
+  command: ProjectConfig['scripts'][string]['command'],
+  platform: NodeJS.Platform
+): string | undefined {
+  if (!command) return undefined
+  if (typeof command === 'string') return command
+  return platform === 'win32' ? command.windows : command.linux
+}
+
+export interface LoadedProjectConfig {
+  fileName: string
+  config: ProjectConfig
+}
+
+/** The project's `.devhub.yaml`, or null when the file is absent. Throws when it is malformed. */
+export async function loadProjectConfig(dir: string): Promise<LoadedProjectConfig | null> {
+  let fileName = ''
+  let text: string | null = null
+  for (const name of configFileNames) {
+    text = await readOptionalFile(join(dir, name))
+    fileName = name
+    if (text !== null) break
+  }
+  if (text === null) return null
+
+  let raw: unknown
+  try {
+    raw = parse(text) ?? {}
+  } catch (error) {
+    const line = error instanceof YAMLParseError ? error.linePos?.[0]?.line : undefined
+    const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
+    throw new Error(`${fileName}${line ? ` 第 ${line} 行` : ''}不是有效的 YAML：${reason}`, {
+      cause: error
+    })
+  }
+
+  const parsed = projectConfigSchema.safeParse(raw)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    const where = issue?.path.length ? issue.path.join('.') : '文件'
+    throw new Error(`${fileName} 格式不正确：${where} ${issue?.message ?? ''}`.trim())
+  }
+  return { fileName, config: parsed.data }
+}
 
 /**
  * Custom scripts from the project's optional `.devhub.yaml`, for commands no detector finds
@@ -21,41 +73,14 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
     source: 'custom',
 
     async detect(dir) {
-      let fileName = ''
-      let text: string | null = null
-      for (const name of configFileNames) {
-        text = await readOptionalFile(join(dir, name))
-        fileName = name
-        if (text !== null) break
-      }
-      if (text === null) return []
-
-      let raw: unknown
-      try {
-        raw = parse(text) ?? {}
-      } catch (error) {
-        const line = error instanceof YAMLParseError ? error.linePos?.[0]?.line : undefined
-        const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
-        throw new Error(`${fileName}${line ? ` 第 ${line} 行` : ''}不是有效的 YAML：${reason}`, {
-          cause: error
-        })
-      }
-
-      const parsed = projectConfigSchema.safeParse(raw)
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0]
-        const where = issue?.path.length ? issue.path.join('.') : '文件'
-        throw new Error(`${fileName} 格式不正确：${where} ${issue?.message ?? ''}`.trim())
-      }
+      const loaded = await loadProjectConfig(dir)
+      if (!loaded) return []
+      const { fileName, config } = loaded
 
       const scripts: Script[] = []
-      for (const [name, entry] of Object.entries(parsed.data.scripts)) {
-        const command =
-          typeof entry.command === 'string'
-            ? entry.command
-            : platform === 'win32'
-              ? entry.command.windows
-              : entry.command.linux
+      for (const [name, entry] of Object.entries(config.scripts)) {
+        const command = commandForPlatform(entry.command, platform)
+        // No command here: the entry only annotates a script another detector found.
         // A command written only for the other platform is simply not offered here.
         if (!command) continue
 
@@ -71,6 +96,10 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
         if (entry.health && ports.length === 0) {
           throw new Error(`${fileName} 中脚本 ${name} 设置了 health，但不知道端口：请同时填写 port`)
         }
+        const outputStatus = entry.status ? resolveOutputStatus(entry.status) : undefined
+        const notify = entry.notify ? resolveNotify(entry.notify) : undefined
+        const hooks =
+          entry.hooks && !scriptHooksAreEmpty({ hooks: entry.hooks }) ? entry.hooks : undefined
         scripts.push({
           id: `custom:${name}`,
           name,
@@ -79,7 +108,13 @@ export function createConfigDetector({ platform }: ConfigDetectorDeps): ScriptDe
           ...(entry.cwd ? { cwd: entry.cwd } : {}),
           ...(entry.description ? { description: entry.description } : {}),
           ...(ports.length > 0 ? { ports } : {}),
-          ...(entry.health ? { healthPath: entry.health } : {})
+          ...(entry.health ? { healthPath: entry.health } : {}),
+          ...(entry.confirm ? { confirm: true } : {}),
+          ...(entry.favorite ? { favorite: true } : {}),
+          ...(entry.overlay ? { overlay: true } : {}),
+          ...(outputStatus ? { outputStatus } : {}),
+          ...(notify ? { notify } : {}),
+          ...(hooks ? { hooks } : {})
         })
       }
       return scripts

@@ -117,6 +117,21 @@ describe('createRunHistory', () => {
     expect(store.writes()).toBe(2)
   })
 
+  it('ignores notification callback runs', async () => {
+    const { history, publish, store } = setup()
+    publish({
+      type: 'run-updated',
+      run: exited('n1', {
+        scriptId: 'notify:abc',
+        title: '通知 yarn launch',
+        command: 'yarn launch axe_king s1-1'
+      })
+    })
+    publish({ type: 'run-updated', run: exited('r1') })
+    await history.flush()
+    expect(store.saved().records.map((record) => record.runId)).toEqual(['r1'])
+  })
+
   it('keeps only the newest runs of each script', async () => {
     const { history, publish } = setup(memoryStore(), 3)
     for (const id of ['a', 'b', 'c', 'd', 'e']) publish({ type: 'run-updated', run: exited(id) })

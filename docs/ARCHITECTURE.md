@@ -164,7 +164,7 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 ## 事件推送（见 ADR 0004）
 
 - `DevhubEvents.subscribe` 独立于 `DevhubApi`：请求-响应走自动映射的 IPC，推送走 `devhubEventChannel`（主进程 `webContents.send` → preload → `@renderer/api` 的 `events`）。远程端改用 SSE（`GET /api/v1/events`，ADR 0022）。
-- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
+- 事件：`run-updated`、`run-removed`、`run-output`（带流偏移量）、`run-health`（就绪状态，ADR 0011）、`run-output-status`（按输出匹配的构建状态，ADR 0031）、`run-status-transition`（输出状态真正变化，ADR 0031）、`status-notify`（声音与系统通知，由主进程消费，ADR 0031）、`favorites-updated`、`overlay-scripts-updated`（悬浮面板长期运行列表，ADR 0031）、`history-updated`（历史处理完成，ADR 0015）、`group-updated`（批量任务进度）、`settings-updated`、`projects-updated`（工作区同步改变了项目或扫描结果，ADR 0018）。
 - 设置分两处（ADR 0007）：影响 core 行为的存 `settings.json`；纯显示偏好（主题、风格、终端字号等）存 renderer 的 localStorage（`lib/appearance.ts`、`terminal-prefs.ts`）。设计风格（ADR 0019）是 `<html data-style>` 下对语义 CSS 变量的覆盖（`assets/styles/`），组件只用语义 token（`bg-primary`，运行状态用 `success` / `warning` / `info`），不写死颜色，新增风格不改组件。renderer 用事件直接更新 TanStack Query 缓存（`useRunEventsSync`，在 App 挂载一次）。
 - 终端：先订阅再取 `getRunOutput` 快照，用 shared 的 `OutputCursor` 去重拼接；core 中输出按 16 ms 合并后推送。
 - renderer 的 `terminal-sessions.ts` 为每个运行保留一个 xterm 实例（切换标签只移动 DOM 节点，关闭标签时释放）；只有可见终端使用 WebGL。快捷键在 `terminal-keys.ts`，外观偏好（主题、字号、渲染方式）在 `terminal-prefs.ts`。
@@ -185,3 +185,11 @@ ShellApi 的通道在 `shellChannel` 中手动定义（数量少，不走自动�
 - 来自 renderer 的参数一律视为不可信，在 core 中用 zod 校验。
 - 交给系统打开的 URL（ShellApi `openExternal`、`setWindowOpenHandler`）统一经 `core/shell/external-url.ts` 校验，只允许 http / https：链接可能来自不可信的进程输出。
 - 远程 API 默认关闭；开启时必须 Token 鉴权（ADR 0022）。每个 `DevhubApi` 方法在 shared 的 `remoteAccess` 中标注 `read` / `control` / `terminal` / `local`，新增方法不归类则编译失败；`local` 永不远程开放，`terminal` 需单独开关。Token 存 `remote.json`，不进 `settings.json`（设置会推送给所有客户端）。
+
+## 悬浮面板与输出状态（ADR 0031）
+
+- 悬浮面板是主进程里的第二个 BrowserWindow（`overlay-controller.ts` / `overlay-window.ts`），不进入 `core/`。透明、无边框、不进任务栏；默认宽 280，高度贴合内容。空的长期运行或收藏区块不占位，两个都空时只留一行说明。拖卡片边缘改大小（把手在卡片内侧，至少 8px；Windows 上窗口不交给系统缩放，否则边缘点击进不了页面）：宽度记在 `overlay.json`，上下拖过的高度是上限，内容更高时在里面滚动，更矮时窗口再缩回去。位置同样存在 `overlay.json`，显示时夹在工作区内。窗口标题栏（设置按钮旁）、托盘项、全局快捷键（默认 Ctrl+Alt+D）和 `toggleOverlay` 开关它。不透明度是设置项 `overlayOpacity`（30%–100%），只在设置页调整。置顶、隐藏、打开主窗口、聚焦某次运行、内容高度和拖拽尺寸走 ShellApi。renderer 用 `?view=overlay` 画同一套数据。
+- `.devhub.yaml` 可为脚本声明 `status`（预设 `webpack` / `tstl`，或 `busy` / `ready` / `error` 正则）、`confirm`、`favorite`、`overlay`。`overlay: true` 才进入悬浮面板的长期运行列表；只写 `status` 不会自动放进去。本机选择在 `overlay-scripts.json`，覆盖文件里的 `overlay`，变更走 `overlay-scripts-updated`。`output-status-monitor` 只听事件总线，在去掉 ANSI 的最近输出里取最后一次匹配，用 `run-output-status` 推送；不改 RunManager。本机收藏在 `favorites.json`，覆盖文件里的 `favorite`，变更走 `favorites-updated`。悬浮面板底部按钮仍是收藏。
+- 状态真正变化时另发 `run-status-transition`（不含一开始的「构建中」，也不含进程退出，同一状态重复匹配不发）。钩子（ADR 0032）在设置页用 JSON 配置，事件是构建就绪（构建中→就绪）、构建出错、进程启动、进程退出。全局配置、`.devhub.yaml` 根上的 `hooks`、脚本条目里的 `hooks`、以及脚本上的 `notify` 简写按这个顺序合在一起执行。动作有最短间隔，默认 15 秒。命令在后台运行，标准输入是事件 JSON，并带 DEVHUB_* 环境变量，超时后杀掉进程树。声音和系统通知由主进程处理。`notifyMuted` 关掉声音，`hookVolume` 缩放音量。标题栏和悬浮面板共用这两个设置：一个喇叭点开后调音量和静音，打开时实心，静音或音量为 0 时是静音图标。面板太矮时临时加高，让这个弹层留在窗口里。
+- 主窗口脚本行上的齿轮（在面板图标和星标左侧）打开该脚本的设置。悬浮面板不放设置按钮。钩子 JSON 不写 `match`。收藏、长期运行、运行前确认、`status` 和 `hooks` 写进该项目 `.devhub.yaml` 的脚本条目；没有 `command` 的条目只注解同名的已发现脚本。本机的收藏和长期运行选择仍覆盖文件里的默认值，保存时两边一起写。`updateScriptSettings` 和 `testScriptHook` 的远程级别是 `local`。
+- 悬浮面板的空白处用指针拖动窗口（主进程按起点加位移 `setBounds`），不用 `-webkit-app-region: drag`，否则 Windows 会把脚本行和按钮的点击吃掉。按钮、输入、开关、滑块、脚本行和展开的终端都不参与拖动；只有终端输出可以选中文字。拖边缘改大小时暂停按内容回写高度，避免和 `setBounds` 来回抢。拖动过程中按所有显示器 bounds 的并集移动，不夹在拖动开始的那一块屏幕上；只有一块屏幕时仍夹在它的工作区里。松手时用窗口当前所在显示器的工作区贴边，阈值仍是 16 像素，之后的高度变化也用这块屏幕。开始拖动会清掉旧的贴边，松手再判断。拖动过程中不贴边、也不按内容改位置。

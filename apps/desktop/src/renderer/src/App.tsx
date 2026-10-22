@@ -1,11 +1,15 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Run } from '@devhub/shared'
+import { shell } from '@renderer/api'
+import { OverlayApp } from '@renderer/features/overlay/overlay-app'
+import { isOverlayView } from '@renderer/features/overlay/is-overlay'
 import { ProjectDetail } from '@renderer/features/projects/project-detail'
 import { GroupDetail } from '@renderer/features/groups/group-detail'
 import { useGroups, useGroupEventsSync } from '@renderer/features/groups/use-groups'
 import { useProjects } from '@renderer/features/projects/use-projects'
 import { OrphansBanner } from '@renderer/features/runs/orphans-banner'
 import { useRunEventsSync } from '@renderer/features/runs/use-runs'
+import { useSettingsSync } from '@renderer/features/settings/use-settings'
 import { Sheet, SheetContent, SheetTitle } from '@renderer/components/ui/sheet'
 import { Sidebar } from '@renderer/features/sidebar/sidebar'
 import { useResizableWidth } from '@renderer/features/sidebar/use-resizable-width'
@@ -21,7 +25,13 @@ const SettingsPage = lazy(() =>
 )
 
 function App(): React.JSX.Element {
+  if (isOverlayView()) return <OverlayApp />
+  return <MainApp />
+}
+
+function MainApp(): React.JSX.Element {
   useRunEventsSync()
+  useSettingsSync()
   useGroupEventsSync()
   useWorkspaceEventsSync()
   const { data: projects } = useProjects()
@@ -30,24 +40,34 @@ function App(): React.JSX.Element {
   // Long project names stay readable when the sidebar is widened (default = Tailwind w-64).
   const sidebar = useResizableWidth('devhub.sidebarWidth', 256, 200)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-  const [requestedRunId, setRequestedRunId] = useState<string | null>(null)
+  const [runRequest, setRunRequest] = useState<{ id: string; nonce: number } | null>(null)
   // On phones the sidebar is a drawer over the content, closed once something is chosen.
   const narrow = useMediaQuery(narrowQuery)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  useEffect(() => {
+    if (!shell) return
+    return shell.onFocusRun((target) => {
+      setSelectedId(target.projectId)
+      setSelectedGroupId(null)
+      setShowSettings(false)
+      setDrawerOpen(false)
+      setRunRequest({ id: target.runId, nonce: Date.now() })
+    })
+  }, [])
   const groups = useGroups().data ?? []
   const selectedGroup = groups.find((group) => group.id === selectedGroupId)
   // Choosing a project in the sidebar leaves the settings page.
   const selectProject = (projectId: string): void => {
     setSelectedId(projectId)
     setSelectedGroupId(null)
-    setRequestedRunId(null)
+    setRunRequest(null)
     setShowSettings(false)
     setDrawerOpen(false)
   }
   // Shows a specific run's terminal tab, e.g. a group step's log or a shell opened from the list.
   const openRun = (run: Run): void => {
     selectProject(run.projectId)
-    setRequestedRunId(run.id)
+    setRunRequest({ id: run.id, nonce: Date.now() })
   }
 
   // Derived rather than synced: falls back to the first project when nothing is selected
@@ -126,9 +146,9 @@ function App(): React.JSX.Element {
               <GroupDetail key={selectedGroup.id} group={selectedGroup} onOpenRun={openRun} />
             ) : selected ? (
               <ProjectDetail
-                key={`${selected.id}:${requestedRunId ?? ''}`}
+                key={`${selected.id}:${runRequest?.nonce ?? ''}`}
                 project={selected}
-                initialRunId={requestedRunId}
+                initialRunId={runRequest?.id ?? null}
               />
             ) : (
               <p className="flex h-full items-center justify-center text-sm text-muted-foreground">

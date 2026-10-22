@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { DevhubError, type Project, type ProjectScripts, type Script } from '@devhub/shared'
+import {
+  applyScriptFileSettings,
+  DevhubError,
+  type Project,
+  type ProjectScripts,
+  type Script
+} from '@devhub/shared'
+import { loadProjectConfig } from '../detectors/config-detector'
 import { detectScripts } from '../detectors/detect-scripts'
 import { isDirectory } from '../fs/is-directory'
 import type { ScriptDetector } from '../detectors/types'
@@ -24,7 +31,16 @@ export function createScriptService({ projects, detectors }: ScriptServiceDeps):
     if (!(await isDirectory(project.path))) {
       return { status: 'missing', scripts: [], warnings: [] }
     }
-    return { status: 'ok', ...(await detectScripts(project.path, detectors)) }
+    const detected = await detectScripts(project.path, detectors)
+    // A malformed file is already a detector warning; annotations are skipped then.
+    const config = await loadProjectConfig(project.path)
+      .then((loaded) => loaded?.config ?? null)
+      .catch(() => null)
+    return {
+      status: 'ok',
+      scripts: applyScriptFileSettings(detected.scripts, config),
+      warnings: detected.warnings
+    }
   }
 
   return {

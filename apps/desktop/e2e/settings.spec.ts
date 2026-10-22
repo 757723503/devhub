@@ -1,7 +1,7 @@
 import { addProjectViaApi, packageJson, test, expect, type DevhubWindow } from './fixtures'
 
 const openSettings = async (page: import('@playwright/test').Page) => {
-  await page.getByRole('button', { name: '设置' }).click()
+  await page.getByRole('button', { name: '设置', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设置' })).toBeVisible()
 }
 
@@ -133,6 +133,35 @@ test('a custom shell can be added and opened from the terminal menu', async ({
   await page.keyboard.type('6*7')
   await page.keyboard.press('Enter')
   await expect(page.locator('.xterm-rows')).toContainText('42')
+})
+
+test('hooks json is validated, saved, and can be test-fired', async ({ launchDevhub }) => {
+  const { page } = await launchDevhub()
+  await openSettings(page)
+  const hooks = page.getByRole('region', { name: 'Hooks' })
+  const editor = hooks.getByLabel('Hooks JSON')
+  await editor.fill('{')
+  await expect(hooks.getByRole('alert')).toContainText('不是有效的 JSON')
+  await expect(hooks.getByRole('button', { name: '保存' })).toBeDisabled()
+
+  await editor.fill(
+    JSON.stringify({
+      hooks: {
+        onStart: [{ actions: [{ type: 'toast', message: '已启动' }], interval: 0 }]
+      }
+    })
+  )
+  await expect(hooks.getByRole('alert')).toBeHidden()
+  await hooks.getByRole('button', { name: '保存' }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as DevhubWindow).devhub.getSettings()))
+    .toMatchObject({
+      hooks: {
+        hooks: { onStart: [{ actions: [{ type: 'toast', message: '已启动' }], interval: 0 }] }
+      }
+    })
+  await hooks.getByRole('button', { name: '试触发进程启动' }).click()
+  await expect(hooks.getByText('已触发 1 个动作')).toBeVisible()
 })
 
 test('a development build says it does not check for updates', async ({ launchDevhub }) => {

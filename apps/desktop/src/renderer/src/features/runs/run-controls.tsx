@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Loader2, Play, RotateCw, Square } from 'lucide-react'
 import type { Run, RunHealth } from '@devhub/shared'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
+import { ConfirmScriptDialog } from '@renderer/features/scripts/confirm-script-dialog'
 import { healthLabels, useHealthOf } from './use-run-health'
 import { PortConflictError, useRestartRun, useStartScript, useStopRun } from './use-runs'
 
@@ -11,6 +13,8 @@ interface RunControlsProps {
   scriptName: string
   /** Latest run of this script, if any. */
   run: Run | undefined
+  /** `.devhub.yaml` `confirm: true`: ask before the first start. */
+  needsConfirm?: boolean
   /** Receives start/stop failures so the list can show them in one place. */
   onError: (error: Error, retry?: () => void) => void
   /** Called with the new run after a start or restart, e.g. to focus its terminal tab. */
@@ -22,6 +26,7 @@ export function RunControls({
   scriptId,
   scriptName,
   run,
+  needsConfirm = false,
   onError,
   onStarted
 }: RunControlsProps): React.JSX.Element {
@@ -30,9 +35,31 @@ export function RunControls({
   const restart = useRestartRun()
   const busy = start.isPending || stop.isPending || restart.isPending
   const active = run && run.status !== 'exited'
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const beginStart = (ignorePortConflicts: boolean): void => {
+    const startAnyway = (): void => beginStart(true)
+    start.mutate(
+      { projectId, scriptId, ignorePortConflicts },
+      {
+        onError: (error) =>
+          onError(
+            error,
+            !ignorePortConflicts && error instanceof PortConflictError ? startAnyway : undefined
+          ),
+        onSuccess: onStarted
+      }
+    )
+  }
 
   return (
     <div className="flex shrink-0 items-center gap-2">
+      <ConfirmScriptDialog
+        scriptName={scriptName}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={() => beginStart(false)}
+      />
       {run && <RunStatusBadge run={run} />}
       {active ? (
         <>
@@ -64,22 +91,7 @@ export function RunControls({
           variant="outline"
           size="icon-sm"
           disabled={busy}
-          onClick={() => {
-            const startAnyway = (): void =>
-              start.mutate(
-                { projectId, scriptId, ignorePortConflicts: true },
-                { onError: (error) => onError(error), onSuccess: onStarted }
-              )
-            start.mutate(
-              { projectId, scriptId },
-              {
-                // A taken port can be overridden: hand the list a way to start anyway.
-                onError: (error) =>
-                  onError(error, error instanceof PortConflictError ? startAnyway : undefined),
-                onSuccess: onStarted
-              }
-            )
-          }}
+          onClick={() => (needsConfirm ? setConfirmOpen(true) : beginStart(false))}
           title="运行"
           aria-label={`运行 ${scriptName}`}
         >

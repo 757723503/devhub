@@ -116,6 +116,75 @@ scripts:
     await expect(detect()).rejects.toThrow(message)
   })
 
+  it('reads confirm, favorite and output status rules', async () => {
+    await write(`
+scripts:
+  deploy:
+    command: npm run deploy
+    confirm: true
+  dev:
+    command: yarn dev
+    favorite: true
+    overlay: true
+    status: [webpack, tstl]
+  watch:
+    command: npm run watch
+    status:
+      busy: Compiling
+      ready: ready in
+    notify:
+      onReady:
+        sound: default
+        toast: true
+      onError:
+        sound: error
+        toast: true
+`)
+    const scripts = await detect()
+    expect(scripts.find((script) => script.name === 'deploy')).toMatchObject({ confirm: true })
+    const dev = scripts.find((script) => script.name === 'dev')
+    expect(dev).toMatchObject({ favorite: true, overlay: true })
+    expect(dev?.outputStatus?.busy).toContain('Compiling')
+    expect(dev?.outputStatus?.ready).toContain('Found 0 errors')
+    expect(scripts.find((script) => script.name === 'watch')?.outputStatus).toEqual({
+      busy: 'Compiling',
+      ready: 'ready in'
+    })
+    expect(scripts.find((script) => script.name === 'watch')?.notify).toEqual({
+      onReady: { sound: 'default', toast: true },
+      onError: { sound: 'error', toast: true },
+      firstBuild: true,
+      intervalSeconds: 15
+    })
+  })
+
+  it('keeps hooks on a custom script and skips an annotation that has no command', async () => {
+    await write(`
+scripts:
+  dev:
+    command: yarn dev
+    hooks:
+      onStart:
+        - actions:
+            - type: toast
+  watch:
+    favorite: true
+    hooks:
+      onReady:
+        - actions:
+            - type: sound
+              file: default
+`)
+    const scripts = await detect()
+    expect(scripts.map((script) => script.name)).toEqual(['dev'])
+    expect(scripts[0]?.hooks?.onStart?.[0]?.actions).toEqual([{ type: 'toast' }])
+  })
+
+  it('reports a status regex that will not compile', async () => {
+    await write('scripts:\n  dev:\n    command: yarn dev\n    status:\n      busy: "("\n')
+    await expect(detect()).rejects.toThrow(/scripts\.dev\.status/)
+  })
+
   it.each([['../elsewhere'], ['/etc']])('refuses a cwd outside the project: %s', async (cwd) => {
     await write(`scripts:\n  api:\n    command: x\n    cwd: ${cwd}\n`)
     await expect(detect()).rejects.toThrow('cwd 必须在项目目录内')
