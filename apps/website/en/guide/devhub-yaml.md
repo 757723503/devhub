@@ -105,7 +105,7 @@ notify:
 
 ## Hooks for one script
 
-The gear on a main-window script row (left of the panel icon and the star) and on the floating panel opens settings for that script. Favorite, long-running, confirm-before-run, output status, and Hooks are written into the project's `.devhub.yaml`. The Hooks JSON matches Settings, except `match` is omitted and stored as this script's name. Order when an event fires: Settings Hooks, the file's root `hooks`, the script entry's `hooks`, then `notify`.
+The gear on a main-window script row (left of the panel icon and the star) opens settings for that script. The floating panel has no settings gear. Favorite, long-running, confirm-before-run, output status, and Hooks are written into the project's `.devhub.yaml`. The Hooks JSON matches Settings, except `match` is omitted and stored as this script's name. Order when an event fires: Settings Hooks, the file's root `hooks`, the script entry's `hooks`, then `notify`.
 
 An entry with no `command` does not become a second custom script. It annotates the npm, Maven, or Gradle script of the same name:
 

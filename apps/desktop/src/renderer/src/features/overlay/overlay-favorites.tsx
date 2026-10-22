@@ -4,7 +4,6 @@ import { isScriptFavorite, type Run, type Script } from '@devhub/shared'
 import { Button } from '@renderer/components/ui/button'
 import { useScriptFavorites } from '@renderer/features/scripts/use-favorites'
 import { ConfirmScriptDialog } from '@renderer/features/scripts/confirm-script-dialog'
-import { ScriptSettingsButton } from '@renderer/features/scripts/script-settings-dialog'
 import { PortConflictError, useStartScript } from '@renderer/features/runs/use-runs'
 import { cn } from '@renderer/lib/utils'
 import { useExitFlash } from './use-exit-flash'
@@ -13,14 +12,12 @@ export function OverlayFavorites({
   projectId,
   scripts,
   runs,
-  onError,
-  onSettingsOpenChange
+  onError
 }: {
   projectId: string
   scripts: Script[]
   runs: Run[]
   onError: (error: Error, retry?: () => void) => void
-  onSettingsOpenChange?: (open: boolean) => void
 }): React.JSX.Element | null {
   const favorites = useScriptFavorites()
   const starred = scripts.filter((script) =>
@@ -43,7 +40,6 @@ export function OverlayFavorites({
                 run.kind === 'script' && run.projectId === projectId && run.scriptId === script.id
             )}
             onError={onError}
-            onSettingsOpenChange={onSettingsOpenChange}
           />
         ))}
       </div>
@@ -55,14 +51,12 @@ function FavoriteAction({
   projectId,
   script,
   run,
-  onError,
-  onSettingsOpenChange
+  onError
 }: {
   projectId: string
   script: Script
   run: Run | undefined
   onError: (error: Error, retry?: () => void) => void
-  onSettingsOpenChange?: (open: boolean) => void
 }): React.JSX.Element {
   const start = useStartScript()
   const flash = useExitFlash(run)
@@ -85,29 +79,21 @@ function FavoriteAction({
 
   return (
     <>
-      <div className="flex items-center gap-0.5">
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(
-            'h-auto min-h-7 min-w-0 flex-1 justify-start bg-background/40 px-2',
-            flash === 'ok' && 'border-success/50 bg-success/20',
-            flash === 'fail' && 'border-destructive/50 bg-destructive/20'
-          )}
-          disabled={active || start.isPending}
-          aria-label={`运行收藏的脚本 ${script.name}`}
-          onClick={() => (script.confirm ? setConfirmOpen(true) : startScript())}
-        >
-          {(active || start.isPending) && <Loader2 className="animate-spin" />}
-          <span className="truncate">{script.name}</span>
-        </Button>
-        <ScriptSettingsButton
-          projectId={projectId}
-          script={script}
-          compact
-          onOpenChange={onSettingsOpenChange}
-        />
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          'h-auto min-h-7 w-full justify-start bg-background/40 px-2',
+          flash === 'ok' && 'border-success/50 bg-success/20',
+          flash === 'fail' && 'border-destructive/50 bg-destructive/20'
+        )}
+        disabled={active || start.isPending}
+        aria-label={`运行收藏的脚本 ${script.name}`}
+        onClick={() => (script.confirm ? setConfirmOpen(true) : startScript())}
+      >
+        {(active || start.isPending) && <Loader2 className="animate-spin" />}
+        <span className="truncate">{script.name}</span>
+      </Button>
       <ConfirmScriptDialog
         scriptName={script.name}
         open={confirmOpen}

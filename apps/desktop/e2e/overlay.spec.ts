@@ -135,7 +135,7 @@ test('overlay lists long-running scripts and favorites, and confirms before a fl
   await expect(overlay.getByRole('heading', { name: '长期运行' })).toBeVisible()
   await expect(overlay.getByRole('heading', { name: '收藏' })).toBeVisible()
   await expect(overlay.getByRole('button', { name: '运行 全量dev' })).toBeVisible()
-  await expect(overlay.getByRole('button', { name: '全量dev 的设置' })).toHaveCount(2)
+  await expect(overlay.getByRole('button', { name: '全量dev 的设置' })).toHaveCount(0)
   await expect(overlay.getByText('后端watch')).toHaveCount(0)
   await expect(overlay.getByRole('button', { name: '不透明度' })).toHaveCount(0)
   await expect(overlay.getByRole('button', { name: '提示音' })).toHaveCount(1)
@@ -320,7 +320,7 @@ test('overlay shrinks when nothing is listed', async ({
   await overlay.screenshot({ path: testInfo.outputPath('overlay-empty.png') })
 })
 
-test('overlay gear opens this script’s settings inside the window', async ({
+test('overlay has no script settings gear; the main list still does', async ({
   launchDevhub,
   createProject
 }) => {
@@ -329,36 +329,15 @@ test('overlay gear opens this script’s settings inside the window', async ({
       'scripts:',
       '  mock:',
       '    command: node -e "console.log(1)"',
-      '    overlay: true'
+      '    overlay: true',
+      '    favorite: true'
     ].join('\n')
   })
   const { app, page } = await launchDevhub()
   await addProjectViaApi(page, dir)
+  await expect(page.getByRole('button', { name: 'mock 的设置' })).toHaveCount(1)
   const overlay = await openOverlay(app, page)
-  const gear = overlay.getByRole('button', { name: 'mock 的设置' })
-  await expect(gear).toBeVisible()
-  await expect(gear).toHaveClass(/app-no-drag/)
-  expect(
-    (
-      await gear.evaluate((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region'))
-    ).trim()
-  ).not.toBe('drag')
-  await gear.click()
-  const dialog = overlay.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'mock 的设置' })).toBeVisible()
-  await expect
-    .poll(() =>
-      dialog.evaluate((el) => {
-        const rect = el.getBoundingClientRect()
-        return (
-          rect.top >= -1 &&
-          rect.left >= -1 &&
-          rect.bottom <= window.innerHeight + 1 &&
-          rect.right <= window.innerWidth + 1
-        )
-      })
-    )
-    .toBe(true)
-  await dialog.getByRole('checkbox', { name: '收藏' }).check()
-  await expect(dialog.getByRole('checkbox', { name: '收藏' })).toBeChecked()
+  await expect(overlay.getByRole('heading', { name: '长期运行' })).toBeVisible()
+  await expect(overlay.getByRole('heading', { name: '收藏' })).toBeVisible()
+  await expect(overlay.getByRole('button', { name: 'mock 的设置' })).toHaveCount(0)
 })

@@ -213,24 +213,46 @@ export function positionForSnap(
   return { x, y }
 }
 
+/** Bounding box of every rect. The virtual desktop while a drag crosses monitors. */
+export function unionRects(rects: readonly Rect[]): Rect {
+  const first = rects[0]
+  if (!first) return { x: 0, y: 0, width: 0, height: 0 }
+  let minX = first.x
+  let minY = first.y
+  let maxRight = first.x + first.width
+  let maxBottom = first.y + first.height
+  for (const rect of rects) {
+    minX = Math.min(minX, rect.x)
+    minY = Math.min(minY, rect.y)
+    maxRight = Math.max(maxRight, rect.x + rect.width)
+    maxBottom = Math.max(maxBottom, rect.y + rect.height)
+  }
+  return { x: minX, y: minY, width: maxRight - minX, height: maxBottom - minY }
+}
+
 /** Live position while dragging the panel. `dx`/`dy` are screen pixels from the threshold. */
-export function moveOverlayFrame(start: Rect, dx: number, dy: number, workArea: Rect): Rect {
+export function moveOverlayFrame(start: Rect, dx: number, dy: number, bounds: Rect): Rect {
   const position = clampOverlayPosition(
     { x: Math.round(start.x + dx), y: Math.round(start.y + dy) },
     start,
-    workArea
+    bounds
   )
   return { ...start, x: position.x, y: position.y }
 }
 
-/** Where a drag ends: clamp into the work area, then stick to a nearby edge. */
+/**
+ * Where a drag ends. Movement uses `travelBounds` (one work area, or the virtual
+ * desktop). Snap and the final clamp use only `workArea` — the display under the
+ * released frame, not the display where the drag began.
+ */
 export function finishOverlayMove(
   start: Rect,
   dx: number,
   dy: number,
-  workArea: Rect
+  workArea: Rect,
+  travelBounds: Rect = workArea
 ): { frame: Rect; snap: OverlaySnapAnchor | undefined } {
-  const moved = moveOverlayFrame(start, dx, dy, workArea)
+  const moved = moveOverlayFrame(start, dx, dy, travelBounds)
   const snapped = snapOverlayPosition(moved, moved, workArea)
   const position = clampOverlayPosition(snapped, moved, workArea)
   return {

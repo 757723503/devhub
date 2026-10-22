@@ -10,7 +10,8 @@ import {
   parseOverlayPlacement,
   positionForSnap,
   resizeOverlayFrame,
-  snapOverlayPosition
+  snapOverlayPosition,
+  unionRects
 } from './overlay-bounds'
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 }
@@ -156,5 +157,26 @@ describe('overlay placement', () => {
     expect(ended.frame).toEqual({ x: 0, y: 220, width: 280, height: 120 })
     expect(ended.snap).toEqual({ x: 'left', y: null })
     expect(finishOverlayMove(start, 40, 20, workArea).snap).toBeUndefined()
+  })
+
+  it('crosses onto a second display and snaps only against that display', () => {
+    const primary = { x: 0, y: 0, width: 1920, height: 1080 }
+    const secondary = { x: 1920, y: 0, width: 1920, height: 1080 }
+    const virtual = unionRects([primary, secondary])
+    expect(virtual).toEqual({ x: 0, y: 0, width: 3840, height: 1080 })
+    const start = { x: 1600, y: 100, width: 280, height: 200 }
+    // The old bug clamped this to the start display's right edge (1920 - 280).
+    expect(moveOverlayFrame(start, 500, 0, primary).x).toBe(1640)
+    expect(moveOverlayFrame(start, 500, 0, virtual).x).toBe(2100)
+    const ended = finishOverlayMove(start, 500, 0, secondary, virtual)
+    expect(ended.frame.x).toBe(2100)
+    expect(ended.frame.x).toBeGreaterThanOrEqual(secondary.x)
+    expect(ended.frame.x).toBeLessThanOrEqual(secondary.x + secondary.width - start.width)
+    expect(ended.snap).toBeUndefined()
+    const nearLeft = { x: 1700, y: 100, width: 280, height: 200 }
+    expect(moveOverlayFrame(nearLeft, 230, 0, virtual).x).toBe(1930)
+    const snapped = finishOverlayMove(nearLeft, 230, 0, secondary, virtual)
+    expect(snapped.snap).toEqual({ x: 'left', y: null })
+    expect(snapped.frame).toEqual({ x: 1920, y: 100, width: 280, height: 200 })
   })
 })

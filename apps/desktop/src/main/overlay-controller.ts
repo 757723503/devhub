@@ -26,6 +26,7 @@ import {
   positionForSnap,
   resizeOverlayFrame,
   snapOverlayPosition,
+  unionRects,
   type OverlayPlacement,
   type OverlaySizeLimits,
   type OverlaySnapAnchor,
@@ -128,8 +129,17 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     }
   }
 
-  const workAreaFor = (point: { x: number; y: number }): Rect =>
-    screen.getDisplayMatching({ ...point, width: 1, height: 1 }).workArea
+  const workAreaFor = (frame: Rect): Rect => screen.getDisplayMatching(frame).workArea
+
+  /** One display keeps its work area so a drag into the taskbar still clamps and snaps.
+   *  Several displays use the union of their bounds so the window can leave the start screen. */
+  const travelBounds = (): Rect => {
+    const displays = screen.getAllDisplays()
+    if (displays.length <= 1) {
+      return displays[0]?.workArea ?? screen.getPrimaryDisplay().workArea
+    }
+    return unionRects(displays.map((display) => display.bounds))
+  }
 
   const rememberSize = (saved: OverlayPlacement | null): void => {
     if (saved?.width !== undefined) userWidth = saved.width
@@ -189,7 +199,14 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
     const saved = await read()
     if (saved) pinned = saved.alwaysOnTop
     rememberSize(saved)
-    const area = saved ? workAreaFor(saved) : screen.getPrimaryDisplay().workArea
+    const area = saved
+      ? workAreaFor({
+          x: saved.x,
+          y: saved.y,
+          width: saved.width ?? overlayWidth,
+          height: saved.maxHeight ?? overlayMinHeight
+        })
+      : screen.getPrimaryDisplay().workArea
     const width = clampOverlayWidth(userWidth ?? overlayWidth, area.width)
     const height = overlayHeightWithFloor(contentHeight, maxHeight, area.height, contentFloor)
     const restored = saved?.snap
@@ -352,15 +369,18 @@ export function createOverlayController(deps: OverlayControllerDeps): OverlayCon
       if (gesture.phase === 'start') {
         dragging = true
         dragStart = target.getBounds()
+        snap = undefined
         return
       }
       if (!dragStart) return
-      const area = workAreaFor(dragStart)
+      const travel = travelBounds()
       if (gesture.phase !== 'end') {
-        commitBounds(target, moveOverlayFrame(dragStart, gesture.dx, gesture.dy, area))
+        commitBounds(target, moveOverlayFrame(dragStart, gesture.dx, gesture.dy, travel))
         return
       }
-      const placed = finishOverlayMove(dragStart, gesture.dx, gesture.dy, area)
+      const moved = moveOverlayFrame(dragStart, gesture.dx, gesture.dy, travel)
+      const destination = screen.getDisplayMatching(moved).workArea
+      const placed = finishOverlayMove(dragStart, gesture.dx, gesture.dy, destination, travel)
       snap = placed.snap
       commitBounds(target, placed.frame)
       dragging = false
